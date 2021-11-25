@@ -88,9 +88,9 @@
     </spherical_coordinates>
     <state world_name='default'>
       <sim_time>18 827000000</sim_time>
-      <real_time>18 856038904</real_time>
-      <wall_time>1637864423 765919141</wall_time>
-      <iterations>18827</iterations>
+      <real_time>0 0</real_time>
+      <wall_time>1637867452 998186408</wall_time>
+      <iterations>0</iterations>
       <model name='book_10'>
         <pose>4.53805 -3.48289 0.958324 3.13855 -1.30602 1.57134</pose>
         <scale>1 1 1</scale>
@@ -300,7 +300,7 @@
         </link>
       </model>
       <model name='chair_set_2_clone'>
-        <pose>-2.23097 -2.05991 0 0 -0 3.14</pose>
+        <pose>-2.23097 -2.0599 0 0 -0 3.14</pose>
         <scale>1 1 1</scale>
         <link name='link_10'>
           <pose>-2.25034 -1.41202 0 0 -0 3.14</pose>
@@ -796,7 +796,7 @@
         </link>
       </model>
       <model name='labtop_mac_2_clone'>
-        <pose>0.991081 0.343607 0.522332 0 -0 3.1344</pose>
+        <pose>0.991082 0.343607 0.522332 0 -0 3.1344</pose>
         <scale>1 1 1</scale>
         <link name='link_0'>
           <pose>0.991159 0.344637 0.522332 0 -0 3.1344</pose>
@@ -978,7 +978,7 @@
         </link>
       </model>
       <model name='office_small_1'>
-        <pose>-0.829288 -0.037584 0 0 -0 0</pose>
+        <pose>-0.829288 -0.03758 0 0 -0 0</pose>
         <scale>1 1 1</scale>
         <model name='Floor'>
           <pose>-0.829288 -0.037585 0 0 -0 0</pose>
@@ -1378,6 +1378,16 @@
         </link>
         <link name='link_1'>
           <pose>3.6176 -4.38319 0 0 -0 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='unit_box'>
+        <pose>4.5 4.52 0.018573 0 -0 0</pose>
+        <scale>0.625318 0.661583 0.005263</scale>
+        <link name='link'>
+          <pose>4.5 4.52 0.018573 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -9306,7 +9316,7 @@
     </model>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>1.98097 3.70499 3.49939 0 0.717797 0.246328</pose>
+        <pose>3.87931 4.35079 2.18398 0 1.26179 0.01833</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
@@ -10323,6 +10333,59 @@
       <static>1</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose>3.6176 -4.38319 0 0 -0 0</pose>
+    </model>
+    <model name='unit_box'>
+      <pose>4.01259 4.1033 0.5 0 -0 0</pose>
+      <link name='link'>
+        <inertial>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.166667</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.166667</iyy>
+            <iyz>0</iyz>
+            <izz>0.166667</izz>
+          </inertia>
+          <pose>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.999999 0.999999 1.00008</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.999999 0.999999 1.00008</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Grey</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
     </model>
   </world>
 </sdf>
