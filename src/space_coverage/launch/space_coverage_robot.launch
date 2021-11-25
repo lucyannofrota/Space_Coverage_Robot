@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+    <master auto="start"/>
+
+
+
+    <include file="$(find space_coverage)/launch/office.launch"/>
+</launch>

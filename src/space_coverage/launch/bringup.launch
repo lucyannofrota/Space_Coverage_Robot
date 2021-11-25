@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+    <remap from="/image" to="/camera/reg/image_raw"/>
+    <node pkg="zbar_ros" type="barcode_reader_node" name="barcode_reader_node"/>
+    <node pkg="map_server" type="map_server" name="map_server" args="$(find museum_guide)/world/map_01.yaml"/>
+    <include file="$(find museum_guide)/launch/amcl.launch">
+        <arg name="initial_pose_x" default="-7.0"/>
+        <arg name="initial_pose_y" default="-2.5"/>
+        <arg name="initial_pose_a" default="0.0"/>
+    </include>
+    <include file="$(find museum_guide)/launch/move_base.launch"/>
+    <include file="$(find museum_guide)/launch/museum_small.launch"/>
+</launch>
