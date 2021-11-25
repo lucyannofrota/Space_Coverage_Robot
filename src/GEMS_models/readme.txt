@@ -1,0 +1,1 @@
+This files should be put at ~/home/.gazebo/models
