@@ -9,12 +9,15 @@
   <!-- move_base -->
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
     <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" />
-    <rosparam file="$(find museum_guide)/param/costmap_common_params_$(arg model).yaml" command="load" ns="global_costmap" />
-    <rosparam file="$(find museum_guide)/param/costmap_common_params_$(arg model).yaml" command="load" ns="local_costmap" />
-    <rosparam file="$(find museum_guide)/param/local_costmap_params.yaml" command="load" />
-    <rosparam file="$(find museum_guide)/param/global_costmap_params.yaml" command="load" />
-    <rosparam file="$(find museum_guide)/param/move_base_params.yaml" command="load" />
-    <rosparam file="$(find museum_guide)/param/dwa_local_planner_params_$(arg model).yaml" command="load" />
+
+    
+    <rosparam file="$(find space_coverage)/param/stage/stage_costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find space_coverage)/param/stage/stage_costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find space_coverage)/param/stage/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find space_coverage)/param/stage/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find space_coverage)/param/stage/move_base_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find space_coverage)/param/stage/global_planner.yaml" command="load" />
+
     <remap from="cmd_vel" to="$(arg cmd_vel_topic)"/>
     <remap from="odom" to="$(arg odom_topic)"/>
     <param name="DWAPlannerROS/min_vel_x" value="0.0" if="$(arg move_forward_only)" />

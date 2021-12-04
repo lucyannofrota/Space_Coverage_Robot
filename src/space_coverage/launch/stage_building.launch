@@ -19,7 +19,7 @@ args="$(find space_coverage)/world/Stage/pioneer_building.world" respawn="false"
   <node type="rviz" name="rviz" pkg="rviz" args="" />
 
   <!--- load robot's URDF model -->
-  <include file="$(find p3dx_description)/launch/p3dx_description.launch">
+  <include file="$(find space_coverage)/p3dx_description/launch/p3dx_description.launch" />
     <!-- <arg name="tf_prefix" value="" /> -->
   </include>
 
