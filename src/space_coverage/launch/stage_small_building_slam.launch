@@ -17,11 +17,6 @@ args="$(find space_coverage)/world/Stage/pioneer_small_building.world" respawn="
     <remap from="base_scan" to="scan"/>
   </node>
 
-  <!-- Map Server -->
-
-  <node pkg="map_server" type="map_server" name="map_server"
-	  args="$(find space_coverage)/world/Stage/building/small_building_robot.yaml" respawn="false"/>
-
 
   <!--- load robot's URDF model -->
   <include file="$(find p3dx_description)/launch/p3dx_description.launch">
@@ -29,17 +24,19 @@ args="$(find space_coverage)/world/Stage/pioneer_small_building.world" respawn="
   </include>
 
   <!-- Rviz -->
-  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find space_coverage)/world/rviz/small_building.rviz" />
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find space_coverage)/world/rviz/small_building_slam.rviz" />
     <!-- args="-d $(find p3dx_description)/launch/turtlebot3_navigation.rviz"/> -->
 
 
-  <include file="$(find space_coverage)/Modules/amcl.launch">
-    <arg name="initial_pose_x" value="4.2"/>
-    <arg name="initial_pose_y" value="7.9"/>
-    <arg name="initial_pose_a" value="0.0"/>
-  </include>
+  <include file="$(find space_coverage)/Modules/gmapping.launch"/>
+
+  
+
+  <!-- <include file="$(find space_coverage)/Modules/move_base/move_base.launch"/> -->
+
+  <!-- <include file="$(find space_coverage)/Modules/explore.launch"/> -->
 
 
-  <include file="$(find space_coverage)/Modules/move_base/move_base.launch"/>
+
 
 </launch>

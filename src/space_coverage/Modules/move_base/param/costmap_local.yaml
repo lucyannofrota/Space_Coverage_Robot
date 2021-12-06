@@ -7,5 +7,7 @@ local_costmap:
   rolling_window: true
   width: 3.0
   height: 3.0
-  resolution: 0.02
   track_unknown_space: true
+
+  cost_scaling_factor: 10.0
+  inflation_radius: 0.5

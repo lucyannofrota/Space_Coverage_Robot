@@ -223,7 +223,7 @@ window
 floorplan
 ( 
   	name "small_building"
-  	size [27.15 11.075 0.50]
+  	size [27.15 11.075 0.5]
   	pose [13.575 5.5375 0.0 0.0]
   	bitmap "building/small_building.png"
 )
