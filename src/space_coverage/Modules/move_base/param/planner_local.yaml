@@ -12,11 +12,11 @@ TrajectoryPlannerROS:
   #min_in_place_rotational_vel: 0.4
 
   acc_lim_theta: 3.2 #2.5    #3.2 -- maybe too high?
-  acc_lim_x: 2.5
-  acc_lim_y: 2.5
+  acc_lim_x: 1.8 #2.5
+  acc_lim_y: 1.8 #2.5
 
-  xy_goal_tolerance: 0.2 #0.25 #0.5 -- tolerance a bit high?
-  yaw_goal_tolerance: 0.5 #6.29
+  xy_goal_tolerance: 0.1.7 #0.25 #0.5 -- tolerance a bit high?
+  yaw_goal_tolerance: 0.07 #6.29 in radians
 
   holonomic_robot: false
 

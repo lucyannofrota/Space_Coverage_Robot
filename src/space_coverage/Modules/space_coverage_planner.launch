@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="space_coverage_planner" type="space_coverage_planner" respawn="false" name="space_coverage_planner" output="screen">
+    <!-- <param name="robot_base_frame" value="base_link"/> -->
+  </node>
+</launch>

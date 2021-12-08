@@ -218,7 +218,7 @@ window
   			
   	show_data 1              	# 1=on 0=off
 )
-
+#TODO Verificar como adaptar o map cropado
 # load an environment bitmap
 floorplan
 ( 

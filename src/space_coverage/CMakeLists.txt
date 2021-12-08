@@ -1,13 +1,19 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(space_coverage)
 
+set (OpenCV_DIR /usr/lib/x86_64-linux-gnu/cmake/opencv4)
+
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  OpenCV
+  pcl_ros
+)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -112,9 +118,12 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
-# ${catkin_INCLUDE_DIRS}
+  include
+    ${catkin_INCLUDE_DIRS}
 )
+
+add_executable(space_coverage_node src/space_coverage_planner.cpp)
+
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -124,7 +133,7 @@ include_directories(
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(space_coverage_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
@@ -195,7 +204,10 @@ include_directories(
 ## Add gtest based cpp test target and link libraries
 # catkin_add_gtest(${PROJECT_NAME}-test test/test_space_coverage.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
-#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
+target_link_libraries(space_coverage_node
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
 # endif()
 
 ## Add folders to be run by python nosetests
