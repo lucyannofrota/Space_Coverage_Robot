@@ -9,13 +9,19 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <std_msgs/String.h>
 
-const float cell_size = 5;
+#include <visualization_msgs/Marker.h>
+
+const float cell_size_m = (0.225*2.0)*(3.0/5.0); // 2* Robot radius
+const float occ_threshold = 0.5;
 
 #include "SC_planner.hpp"
 
-SC_planner *planner;
-geometry_msgs::Point new_pose;
-cv::Mat_<int8_t> *map;
+static SC_planner *planner = NULL;
+static geometry_msgs::Point new_pose;
+static cv::Mat_<uint8_t> *map = NULL;
+// static cv::Mat_<uint8_t> *gridOverlay = NULL;
+
+// static ros::Publisher vis_pub;
 
 // #include <opencv2/imgproc.hpp>
 
@@ -54,37 +60,43 @@ void initializeMap(const nav_msgs::OccupancyGrid& msg){
 
     std::vector<signed char>::const_iterator mapDataIter = msg.data.begin();
 
+    map = new cv::Mat_<uint8_t>;
+
     *map = cv::Mat::zeros(msg.info.height,msg.info.width,CV_8UC1);
-    // *map = cv::Mat::zeros(400,400,CV_8UC1);
 
     for(int i = msg.info.height; i >= 0; i--){
         for(int j = 0; j < msg.info.width; j++){
-    // for(int i = 0; i < 400; i++){
-    //     for(int j = 0; j < 400; j++){
-            // std::cout << *mapDataIter << std::endl;
             if(*mapDataIter == -1){
-                map->at<uchar>(i,j) = 0;
+                map->at<uchar>(i,j) = 127;
             }
             else{
-                map->at<uchar>(i,j) = 127-(255/100)*(*mapDataIter);
-                // if(*mapDataIter < 0){
-                //     map->at<uchar>(i,j) = 0;
-                // }
-                // else map->at<uchar>(i,j) = 127;
+                if(*mapDataIter >= occ_threshold) map->at<uchar>(i,j) = 0;
+                else map->at<uchar>(i,j) = 255;
             }
-
-            // }
-            // map->at<uchar>(i,j) = *mapDataIter;
+            // map->at<uchar>(i,j) = 127-(255/100)*(*mapDataIter);
             ++mapDataIter;
         }
-        
     }
+
+
+
+
+
+    // TODO Fazer crop da imagem. E resolver a transformada em outra escala e que relaciona um ponto na imagem com o mapa
 }
+
+// void initializeGridOverlay(void){
+//     // gridOverlay
+//     // *gridOverlay = cv::Mat::zeros(msg.info.height,msg.info.width,CV_8UC1);
+// }
 
 void mapCallBack(const nav_msgs::OccupancyGrid& msg){
     
+    if(map == NULL){
+        initializeMap(msg);
+        planner->setup_planner(msg);
+    }
 
-    initializeMap(msg);
 
     
     // cv::imshow("Space Coverage Planner", img0);
@@ -96,16 +108,28 @@ int main(int argc, char **argv){
 	ros::init(argc, argv, "SC_Planner");
 	ros::NodeHandle nh;
 
-    map = new cv::Mat_<int8_t>;
     cv::namedWindow("Space Coverage Planner");
 
-    planner = new SC_planner();
+    planner = new SC_planner(cell_size_m);
 
-	ros::Subscriber subs_odom = nh.subscribe("/odom", 10, odomCallback);
+    ros::Publisher vis_pub = nh.advertise<visualization_msgs::Marker>( "SC_Planner", 0 );
+
+    planner->define_pub(vis_pub);
+
+
+
+
+
+
+    ros::Subscriber subs_odom = nh.subscribe("/odom", 10, odomCallback);
     ros::Subscriber subs_map = nh.subscribe("/map", 3, mapCallBack);
 
 	ros::Rate rate(10);
 	while(ros::ok()){
+
+        // planner->iterate();
+        // publishMarkers(vis_pub);
+
 		rate.sleep();
 		ros::spinOnce();
 	}
