@@ -3,11 +3,11 @@ local_costmap:
   robot_base_frame: base_link
   update_frequency: 10.0
   publish_frequency: 10.0
-  static_map: true # This should be false for the robot to be able to avoid dynamic obstacles
+  static_map: false # This should be false for the robot to be able to avoid dynamic obstacles
   rolling_window: true
   width: 3.0
   height: 3.0
-  track_unknown_space: true
+  track_unknown_space: false
 
   cost_scaling_factor: 0.0
   inflation_radius: 0.07
