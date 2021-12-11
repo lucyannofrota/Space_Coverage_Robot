@@ -39,6 +39,7 @@ class SC_planner{
     geometry_msgs::Point last_pose;
     grid_cord gridPose;
     bool initialPose_defined = false;
+    grid_cord current_goal;
 
     public:
     SC_planner(float cell_m){
@@ -153,24 +154,36 @@ class SC_planner{
     }
 
     bool iterate(const geometry_msgs::Point &current_pose){
+
+        // Hit detection
+        static grid_cord temp_gridPose;
+        temp_gridPose = this->transform_world_to_grid(current_pose);
+        if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == 1)
+            this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = 2;
+
+
         if(!this->initialPose_defined){
             // TODO downsampling
-            static grid_cord temp_gridPose = this->transform_world_to_grid(current_pose);
-
-            switch(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j)){
-                case 1:
-                    this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = 2;
-                    
-                    break;
-            }
-
 
             this->last_pose = current_pose;
+
+            current_goal = decisionBase();
+
+
+
+            this->initialPose_defined = true;
+        }
+        else{
+
         }
         // if(!this->initialized_markers){
         // }
         this->pubMarkers();
         return true;
+    }
+
+    grid_cord decisionBase(void){
+
     }
 
     geometry_msgs::Point transform_grid_to_world(const grid_cord &cord){
@@ -206,11 +219,14 @@ class SC_planner{
         temp.y -= this->marker.scale.y/2;
 
         // Grid offset
-        cord_out.j = temp.x/(this->marker.scale.x+this->baseMap_resolution/4);
-        cord_out.i = temp.y/(this->marker.scale.y+this->baseMap_resolution/4);
+        cord_out.j = round(temp.x/(this->marker.scale.x+this->baseMap_resolution/4));
+        cord_out.i = round(temp.y/(this->marker.scale.y+this->baseMap_resolution/4));
+
+        if(cord_out.j >= this->gridMap.cols) cord_out.j = this->gridMap.cols;
+        if(cord_out.i >= this->gridMap.rows) cord_out.i = this->gridMap.rows;
         // out_pose.x += j*this->marker.scale.x;
         // out_pose.y += i*this->marker.scale.y;
-
+        printf("world_to_grid: (%i, %i)\n", cord_out.j, cord_out.i);
         return cord_out;
     }
 
@@ -227,8 +243,13 @@ class SC_planner{
                 pose.z = 0.05;
                 switch(this->gridMap.at<uchar>(i,j)){
                     case 0:
-                        // this->marker.points.push_back(pose);
-                        // this->marker.colors.push_back(this->c_free);
+                        // This case should be empty!
+                        // Used to see the complete gridMap on rviz
+                        if(is_empty){
+                            this->marker.points.push_back(pose);
+                            this->marker.colors.push_back(this->c_free);
+                        }
+                        else this->marker.colors[i*this->gridMap.cols+j] = this->c_free;
                         break;
                     case 1:
                         if(is_empty){
@@ -256,6 +277,7 @@ class SC_planner{
         for(uint16_t i = 0; i < this->gridMap.rows; i++){
             for(uint16_t j = 0; j < this->gridMap.cols; j++){
 
+                // this->gridMap.at<uchar>(i,j);
                 // pose = this->transform_grid_to_world(grid_cord(i,j));
                 // pose.z = 0.05;
                 // switch(this->gridMap.at<uchar>(i,j)){
