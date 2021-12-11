@@ -52,7 +52,7 @@ void odomCallback(const nav_msgs::Odometry& msg){
               << "\tz: " << msg.pose.pose.position.z
               << std::endl;
         if(planner!=NULL){
-            if(planner->iterate(msg.pose.pose.position)){
+            if(planner->iterate(msg.pose.pose)){
                 // new_pose is valid!
                 std::cout << "planner iteration" << std::endl;
             }
@@ -139,9 +139,11 @@ int main(int argc, char **argv){
         planner = new SC_planner(cell_size_m);
 
 
-        ros::Publisher vis_pub = nh.advertise<visualization_msgs::Marker>( "SC_Planner", 0 );
+        ros::Publisher vis_pub = nh.advertise<visualization_msgs::Marker>( "/SC_Planner_Markers", 5 );
+        // ros::Publisher goal_pub = nh.advertise<visualization_msgs::Marker>( "/move_base/goal", 5 );
 
         planner->define_pubMarker(vis_pub);
+        // planner->define_pubGoal(goal_pub);
 
 
         ros::Subscriber subs_map = nh.subscribe("/map", 3, mapCallBack);
@@ -162,6 +164,7 @@ int main(int argc, char **argv){
     }
 
 }
+
 
 
 
