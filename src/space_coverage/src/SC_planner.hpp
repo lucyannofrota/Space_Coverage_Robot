@@ -203,7 +203,7 @@ class SC_planner{
 
                 goal.target_pose.pose = this->transform_grid_to_world(this->current_goal);
 
-                this->GoalPub->publish(goal);
+                if(this->GoalPub != NULL) this->GoalPub->publish(goal);
             }
         }
 
@@ -212,7 +212,8 @@ class SC_planner{
     }
 
     grid_cord decisionBase(void){
-
+        grid_cord dummy;
+        return dummy;
     }
 
     geometry_msgs::Pose transform_grid_to_world(const grid_cord &cord){
@@ -285,6 +286,7 @@ class SC_planner{
                     case 0:
                         // This case should be empty!
                         // Used to see the complete gridMap on rviz
+                        // Remove to filter the cells
                         if(is_empty){
                             this->marker.points.push_back(pose.position);
                             this->marker.colors.push_back(this->c_free);

@@ -140,9 +140,10 @@ int main(int argc, char **argv){
 
 
         ros::Publisher vis_pub = nh.advertise<visualization_msgs::Marker>( "/SC_Planner_Markers", 5 );
-        ros::Publisher goal_pub = nh.advertise<visualization_msgs::Marker>( "/move_base/goal", 5 );
+        // ros::Publisher goal_pub = nh.advertise<visualization_msgs::Marker>( "/move_base/goal", 5 );
 
         planner->define_pubMarker(vis_pub);
+        // planner->define_pubGoal(goal_pub);
 
 
         ros::Subscriber subs_map = nh.subscribe("/map", 3, mapCallBack);
