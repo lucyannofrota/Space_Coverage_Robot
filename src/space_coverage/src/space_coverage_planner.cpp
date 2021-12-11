@@ -18,7 +18,7 @@ const float occ_threshold = 0.5;
 #include <stdio.h>
 
 static SC_planner *planner = NULL;
-static geometry_msgs::Point new_pose;
+// static geometry_msgs::Point new_pose;
 static cv::Mat_<uchar> *map = NULL;
 static unsigned int mapExtremes[4]; // [min_x,max_x,min_y,max_y]
 // static cv::Mat_<uint8_t> *gridOverlay = NULL;
@@ -52,7 +52,7 @@ void odomCallback(const nav_msgs::Odometry& msg){
               << "\tz: " << msg.pose.pose.position.z
               << std::endl;
         if(planner!=NULL){
-            if(planner->iterate(msg.pose.pose.position,new_pose)){
+            if(planner->iterate(msg.pose.pose.position)){
                 // new_pose is valid!
                 std::cout << "planner iteration" << std::endl;
             }
@@ -138,13 +138,14 @@ int main(int argc, char **argv){
 
         planner = new SC_planner(cell_size_m);
 
+
         ros::Publisher vis_pub = nh.advertise<visualization_msgs::Marker>( "SC_Planner", 0 );
 
-        planner->define_pub(vis_pub);
+        planner->define_pubMarker(vis_pub);
 
 
-        ros::Subscriber subs_odom = nh.subscribe("/odom", 10, odomCallback);
         ros::Subscriber subs_map = nh.subscribe("/map", 3, mapCallBack);
+        ros::Subscriber subs_odom = nh.subscribe("/odom", 5, odomCallback);
 
         ros::Rate rate(10);
         while(ros::ok()){
