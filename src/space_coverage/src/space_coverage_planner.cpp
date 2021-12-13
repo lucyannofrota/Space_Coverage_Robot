@@ -11,6 +11,10 @@
 
 #include <visualization_msgs/Marker.h>
 
+#include <move_base_msgs/MoveBaseAction.h>
+#include <actionlib/client/simple_action_client.h>
+
+
 const float cell_size_m = (0.225*2.0)*(0.7); // 2* Robot radius
 const float occ_threshold = 0.5;
 
@@ -47,14 +51,14 @@ void drawCallback(void){
 
 void odomCallback(const nav_msgs::Odometry& msg){
     try{
-        std::cout << "x: " << msg.pose.pose.position.x 
-              << "\ty: " << msg.pose.pose.position.y
-              << "\tz: " << msg.pose.pose.position.z
-              << std::endl;
+        // std::cout << "x: " << msg.pose.pose.position.x 
+        //       << "\ty: " << msg.pose.pose.position.y
+        //       << "\tz: " << msg.pose.pose.position.z
+        //       << std::endl;
         if(planner!=NULL){
             if(planner->iterate(msg.pose.pose)){
                 // new_pose is valid!
-                std::cout << "planner iteration" << std::endl;
+                // std::cout << "planner iteration" << std::endl;
             }
         }
         // cell_size
@@ -136,7 +140,15 @@ int main(int argc, char **argv){
 
         cv::namedWindow("Space Coverage Planner");
 
-        planner = new SC_planner(cell_size_m);
+        //tell the action client that we want to spin a thread by default
+        MoveBaseClient ac("move_base", true);
+
+        //wait for the action server to come up
+        while(!ac.waitForServer(ros::Duration(5.0))){
+            ROS_INFO("Waiting for the move_base action server to come up");
+        }
+
+        planner = new SC_planner(ac,cell_size_m);
 
 
         ros::Publisher vis_pub = nh.advertise<visualization_msgs::Marker>( "/SC_Planner_Markers", 5 );

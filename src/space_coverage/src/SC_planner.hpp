@@ -1,5 +1,7 @@
 #include <tf/tf.h>
-#include <move_base_msgs/MoveBaseGoal.h>
+
+typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
+
 
 enum SC_CELL_TYPE{OCC = 1,FREE = 0};
 
@@ -53,16 +55,16 @@ class SC_planner{
     grid_cord last_goal;
     grid_cord current_goal;
 
-    ros::Publisher *GoalPub;
+    MoveBaseClient *MB_client;
 
     public:
-    SC_planner(float cell_m){
+    SC_planner(MoveBaseClient &MB_client_,float cell_m){
         this->cell_size_m = cell_m;
 
         this->cell_size_pix = 0;
 
         this->MarkgerPub = NULL; 
-        this->GoalPub = NULL;
+        this->MB_client = &MB_client_;
 
         this->c_occ.a = 0.2;
         this->c_occ.r = 0.0;
@@ -158,10 +160,6 @@ class SC_planner{
         this->marker.lifetime.fromSec(0.15);
     }
 
-    void define_pubGoal(ros::Publisher &publisher){
-        this->GoalPub = &publisher;
-    }
-
     bool validDisplacement(geometry_msgs::Pose pose){
         //TODO
 
@@ -170,6 +168,10 @@ class SC_planner{
         // msg.pose.pose.pos
         // this->last_pose = 
         return true;
+    }
+
+    void detect_neighbors(const grid_cord &current_cell){
+        
     }
 
     bool iterate(const geometry_msgs::Pose &current_pose){
@@ -183,7 +185,7 @@ class SC_planner{
         if(!this->initialPose_defined){
             this->last_pose = current_pose;
 
-            this->current_goal = decisionBase();
+            this->current_goal = temp_gridPose;//decisionBase();
             this->last_goal = temp_gridPose;
             this->initialPose_defined = true;
         }
@@ -191,19 +193,24 @@ class SC_planner{
             if(this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) == 2){
                 static grid_cord temp_last_goal;
                 temp_last_goal = this->current_goal;
-                this->current_goal = decisionBase();
+                this->current_goal = grid_cord(24,14,dir::RIGHT);
                 this->last_goal = temp_last_goal;
                 this->last_pose = current_pose;
 
 
                 // Publishing goal
-                move_base_msgs::MoveBaseGoal goal;
-                goal.target_pose.header.frame_id = "map";
-                goal.target_pose.header.stamp = ros::Time::now();
+                if(this->MB_client != NULL){
+                    move_base_msgs::MoveBaseGoal goal;
+                    goal.target_pose.header.frame_id = "map";
+                    goal.target_pose.header.stamp = ros::Time::now();
 
-                goal.target_pose.pose = this->transform_grid_to_world(this->current_goal);
-
-                if(this->GoalPub != NULL) this->GoalPub->publish(goal);
+                    goal.target_pose.pose = this->transform_grid_to_world(this->current_goal);
+                    printf("Sending Goal!\n");
+                    printf("Goal: %f,%f,%f\n",goal.target_pose.pose.position.x,goal.target_pose.pose.position.y,tf::getYaw(goal.target_pose.pose.orientation));
+                    printf("Cell Goal: %u,%u,%u\n",this->current_goal.j,this->current_goal.i,this->current_goal.direction);
+                    this->MB_client->sendGoal(goal);
+                }
+                else ROS_WARN("No Move_Base client defined!\n");
             }
         }
 
@@ -232,6 +239,28 @@ class SC_planner{
         //BUG O tamanho de celula interfere na componente de overlap de escala
         out_pose.position.x += cord.j*(this->marker.scale.x+this->baseMap_resolution/4); //   /2 para 0.6
         out_pose.position.y += cord.i*(this->marker.scale.y+this->baseMap_resolution/4); // 0.02
+        // tf::getYaw(pose.orientation)
+        float angle;
+        switch(cord.direction){
+            case dir::RIGHT:
+                angle = 0;
+                break;
+            case dir::UP:
+                angle = M_PI_2;
+                break;
+            case dir::LEFT:
+                angle = M_PI;
+                break;
+            case dir::DOWN:
+                angle = -M_PI_2;
+                break;
+        }
+        tf::Quaternion tempQ = tf::createQuaternionFromYaw(angle);
+        // tempQ.
+        out_pose.orientation.w = tempQ.getW();
+        out_pose.orientation.x = tempQ.getX();
+        out_pose.orientation.y = tempQ.getY();
+        out_pose.orientation.z = tempQ.getZ();
         return out_pose;
     }
 
