@@ -224,6 +224,6 @@ floorplan
 ( 
   	name "building"
   	size [27.15 11.075 0.50]
-  	pose [13.575 5.5375 0.0 0.0]
+  	pose [8.45 8.22 0.0 0.0]
   	bitmap "building/building.png"
 )

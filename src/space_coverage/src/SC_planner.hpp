@@ -8,8 +8,8 @@ enum SC_CELL_TYPE{OCC = 1,FREE = 0};
 enum dir{UP,DOWN,LEFT,RIGHT};
 
 struct grid_cord{
-    uint16_t i; // Height
-    uint16_t j; // Width
+    uint16_t i; // y Height
+    uint16_t j; // x Width
     dir direction;
     grid_cord(void){
         this->i = 0;
