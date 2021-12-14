@@ -3,7 +3,7 @@
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
 
-enum SC_CELL_TYPE{OCC = 1,FREE = 0};
+enum SC_CELL_TYPE{OCC = 2,FREE = 1,INVALID = 0};
 
 enum dir{UP,DOWN,LEFT,RIGHT};
 
@@ -114,21 +114,21 @@ class SC_planner{
                 for(uint16_t cy = 0; cy < this->cell_size_pix; cy++){
                     uint16_t y = cy+i*this->cell_size_pix;
                     if(y > this->baseMap->rows || y < this->mapExtremes[2] || y > this->mapExtremes[3]){
-                        this->gridMap.at<uchar>(i,j) = 0;
+                        this->gridMap.at<uchar>(i,j) = SC_CELL_TYPE::INVALID;
                         goto label1;
                     }
                     for(uint16_t cx = 0; cx < this->cell_size_pix; cx++){
                         uint16_t x = cx+j*this->cell_size_pix;
                         if(x > this->baseMap->cols || x < this->mapExtremes[0] || x > this->mapExtremes[1]){
-                            this->gridMap.at<uchar>(i,j) = 0;
+                            this->gridMap.at<uchar>(i,j) = SC_CELL_TYPE::INVALID;
                             goto label1;
                         }
 
                         if(this->baseMap->at<uchar>(y,x) <= 200) free = false;
                     }
                 }
-                if(free) this->gridMap.at<uchar>(i,j) = 1;
-                else this->gridMap.at<uchar>(i,j) = 0;
+                if(free) this->gridMap.at<uchar>(i,j) = SC_CELL_TYPE::FREE;
+                else this->gridMap.at<uchar>(i,j) = SC_CELL_TYPE::INVALID;
                 label1:
                 continue;
             }
@@ -179,7 +179,8 @@ class SC_planner{
         // Hit detection
         static grid_cord temp_gridPose;
         temp_gridPose = this->transform_world_to_grid(current_pose);
-        if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == 1) this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = 2;
+        if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::FREE) this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
+        printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
 
         // TODO downsampling
         if(!this->initialPose_defined){
@@ -190,10 +191,10 @@ class SC_planner{
             this->initialPose_defined = true;
         }
         else{
-            if(this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) == 2){
+            if(this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) == SC_CELL_TYPE::OCC){
                 static grid_cord temp_last_goal;
                 temp_last_goal = this->current_goal;
-                this->current_goal = grid_cord(24,14,dir::RIGHT);
+                this->current_goal = grid_cord(24,14,dir::RIGHT);//temp_gridPose;//grid_cord(24,14,dir::RIGHT);
                 this->last_goal = temp_last_goal;
                 this->last_pose = current_pose;
 
@@ -307,34 +308,39 @@ class SC_planner{
 
         const bool is_empty = this->marker.points.empty();
 
+        uint16_t idx = 0;
+
         for(uint16_t i = 0; i < this->gridMap.rows; i++){
             for(uint16_t j = 0; j < this->gridMap.cols; j++){
                 pose = this->transform_grid_to_world(grid_cord(i,j));
                 pose.position.z = 0.05;
                 switch(this->gridMap.at<uchar>(i,j)){
-                    case 0:
+                    case SC_CELL_TYPE::INVALID:
                         // This case should be empty!
                         // Used to see the complete gridMap on rviz
                         // Remove to filter the cells
+                        // if(is_empty){
+                        //     this->marker.points.push_back(pose.position);
+                        //     this->marker.colors.push_back(this->c_free);
+                        // }
+                        // else this->marker.colors[i*this->gridMap.cols+j] = this->c_free;
+                        // idx++;
+                        break;
+                    case SC_CELL_TYPE::FREE:
                         if(is_empty){
                             this->marker.points.push_back(pose.position);
                             this->marker.colors.push_back(this->c_free);
                         }
-                        else this->marker.colors[i*this->gridMap.cols+j] = this->c_free;
+                        else this->marker.colors[idx] = this->c_free;
+                        idx++;
                         break;
-                    case 1:
-                        if(is_empty){
-                            this->marker.points.push_back(pose.position);
-                            this->marker.colors.push_back(this->c_free);
-                        }
-                        else this->marker.colors[i*this->gridMap.cols+j] = this->c_free;
-                        break;
-                    case 2:
+                    case SC_CELL_TYPE::OCC:
                         if(is_empty){
                             this->marker.points.push_back(pose.position);
                             this->marker.colors.push_back(this->c_occ);
                         }
-                        else this->marker.colors[i*this->gridMap.cols+j] = this->c_occ;
+                        else this->marker.colors[idx] = this->c_occ;
+                        idx++;
                         break;
                 }
                 // if(this->gridMap.at<uchar>(i,j) == 0;
