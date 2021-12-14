@@ -40,8 +40,9 @@ class SC_planner{
     float baseMap_resolution;
 
     // Mekers_Publisher
-    ros::Publisher *MarkgerPub; // Will publish if defined
-    visualization_msgs::Marker marker;
+    ros::Publisher *MarkerPub; // Will publish if defined
+    visualization_msgs::Marker cell_marker;
+    visualization_msgs::Marker path_marker;
 
 
     // Cell_colors
@@ -66,7 +67,7 @@ class SC_planner{
 
         this->cell_size_pix = 0;
 
-        this->MarkgerPub = NULL; 
+        this->MarkerPub = NULL; 
         this->MB_client = &MB_client_;
 
         this->c_occ.a = 0.2;
@@ -139,28 +140,63 @@ class SC_planner{
 
     }
 
-    void define_pubMarker(ros::Publisher &publisher){
-        this->MarkgerPub = &publisher;
+    void define_rviz_Markers(ros::Publisher &publisher){
+        this->MarkerPub = &publisher;
 
         // Base marker definition
-        this->marker.header.frame_id = "map";
-        this->marker.header.stamp = ros::Time();
-        this->marker.ns = "SC_Planner";
-        this->marker.id = 0;
-        this->marker.type = visualization_msgs::Marker::CUBE_LIST;
-        this->marker.action = visualization_msgs::Marker::ADD;
-        this->marker.pose.position.x = 0;
-        this->marker.pose.position.y = 0;
-        this->marker.pose.position.z = 0;
-        this->marker.pose.orientation.x = 0.0;
-        this->marker.pose.orientation.y = 0.0;
-        this->marker.pose.orientation.z = 0.0;
-        this->marker.pose.orientation.w = 1.0;
-        this->marker.scale.x = this->cell_size_m;
-        this->marker.scale.y = this->cell_size_m;
-        this->marker.scale.z = 0.01;
+        this->cell_marker.header.frame_id = "map";
+        this->cell_marker.header.stamp = ros::Time();
+        this->cell_marker.ns = "SC_Planner_Cells";
+        this->cell_marker.id = 0;
+        this->cell_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        this->cell_marker.action = visualization_msgs::Marker::ADD;
+        this->cell_marker.pose.position.x = 0;
+        this->cell_marker.pose.position.y = 0;
+        this->cell_marker.pose.position.z = 0;
+        this->cell_marker.pose.orientation.x = 0.0;
+        this->cell_marker.pose.orientation.y = 0.0;
+        this->cell_marker.pose.orientation.z = 0.0;
+        this->cell_marker.pose.orientation.w = 1.0;
+        this->cell_marker.scale.x = this->cell_size_m;
+        this->cell_marker.scale.y = this->cell_size_m;
+        this->cell_marker.scale.z = 0.01;
         // this->marker.color.a = 1.0; // Don't forget to set the alpha!
-        this->marker.lifetime.fromSec(0.15);
+        this->cell_marker.lifetime.fromSec(0.15);
+
+
+        this->path_marker.header.frame_id = "map";
+        this->path_marker.header.stamp = ros::Time();
+        this->path_marker.ns = "SC_Planner_Path";
+        this->path_marker.id = 1;
+        this->path_marker.type = visualization_msgs::Marker::LINE_STRIP;
+        this->path_marker.action = visualization_msgs::Marker::ADD;
+        this->path_marker.pose.position.x = 0;
+        this->path_marker.pose.position.y = 0;
+        this->path_marker.pose.position.z = 0;
+        this->path_marker.pose.orientation.x = 0.0;
+        this->path_marker.pose.orientation.y = 0.0;
+        this->path_marker.pose.orientation.z = 0.0;
+        this->path_marker.pose.orientation.w = 1.0;
+        this->path_marker.scale.x = 0.03;
+        this->path_marker.scale.y = 0.03;
+        this->path_marker.scale.z = 0.03;
+        this->path_marker.color.a = 1;
+        this->path_marker.color.r = 1;
+        this->path_marker.color.g = 0;
+        this->path_marker.color.b = 0;
+        this->path_marker.lifetime.fromSec(0.15);
+
+
+        // Path points demo
+        geometry_msgs::Point pt;
+        bool tmp = false;
+        pt.z = 0.01;
+        for(int a = 7; a < 14; a++){
+            pt.x = a;
+            pt.y = tmp ? 7 : 3;
+            tmp = !tmp; 
+            this->path_marker.points.push_back(pt);
+        }
     }
 
     bool validDisplacement(geometry_msgs::Pose pose){
@@ -271,13 +307,13 @@ class SC_planner{
         out_pose.position.y += -1.0;
 
         // Center offset
-        out_pose.position.x += this->marker.scale.x/2;
-        out_pose.position.y += this->marker.scale.y/2;
+        out_pose.position.x += this->cell_marker.scale.x/2;
+        out_pose.position.y += this->cell_marker.scale.y/2;
 
         // Grid offset
         //BUG O tamanho de celula interfere na componente de overlap de escala
-        out_pose.position.x += cord.j*(this->marker.scale.x+this->baseMap_resolution/4); //   /2 para 0.6
-        out_pose.position.y += cord.i*(this->marker.scale.y+this->baseMap_resolution/4); // 0.02
+        out_pose.position.x += cord.j*(this->cell_marker.scale.x+this->baseMap_resolution/4); //   /2 para 0.6
+        out_pose.position.y += cord.i*(this->cell_marker.scale.y+this->baseMap_resolution/4); // 0.02
         // tf::getYaw(pose.orientation)
         float angle;
         switch(cord.direction){
@@ -313,12 +349,12 @@ class SC_planner{
         temp.position.y -= -1.0;
 
         // Center offset
-        temp.position.x -= this->marker.scale.x/2;
-        temp.position.y -= this->marker.scale.y/2;
+        temp.position.x -= this->cell_marker.scale.x/2;
+        temp.position.y -= this->cell_marker.scale.y/2;
 
         // Grid offset
-        cord_out.j = round(temp.position.x/(this->marker.scale.x+this->baseMap_resolution/4));
-        cord_out.i = round(temp.position.y/(this->marker.scale.y+this->baseMap_resolution/4));
+        cord_out.j = round(temp.position.x/(this->cell_marker.scale.x+this->baseMap_resolution/4));
+        cord_out.i = round(temp.position.y/(this->cell_marker.scale.y+this->baseMap_resolution/4));
 
         if(cord_out.j >= this->gridMap.cols) cord_out.j = this->gridMap.cols;
         if(cord_out.i >= this->gridMap.rows) cord_out.i = this->gridMap.rows;
@@ -344,7 +380,7 @@ class SC_planner{
     void pubMarkers(void){
         geometry_msgs::Pose pose;
 
-        const bool is_empty = this->marker.points.empty();
+        const bool is_empty = this->cell_marker.points.empty();
 
         uint16_t idx = 0;
 
@@ -358,26 +394,29 @@ class SC_planner{
                         // Used to see the complete gridMap on rviz
                         // Remove to filter the cells
                         // if(is_empty){
-                        //     this->marker.points.push_back(pose.position);
-                        //     this->marker.colors.push_back(this->c_free);
+                        //     this->cell_marker.points.push_back(pose.position);
+                        //     this->cell_marker.colors.push_back(this->c_free);
                         // }
-                        // else this->marker.colors[i*this->gridMap.cols+j] = this->c_free;
+                        // else this->cell_marker.colors[i*this->gridMap.cols+j] = this->c_free;
                         // idx++;
+                        // if(is_empty){
+                        //     this->path_marker.points.push_back(pose.position);
+                        // }
                         break;
                     case SC_CELL_TYPE::FREE:
                         if(is_empty){
-                            this->marker.points.push_back(pose.position);
-                            this->marker.colors.push_back(this->c_free);
+                            this->cell_marker.points.push_back(pose.position);
+                            this->cell_marker.colors.push_back(this->c_free);
                         }
-                        else this->marker.colors[idx] = this->c_free;
+                        else this->cell_marker.colors[idx] = this->c_free;
                         idx++;
                         break;
                     case SC_CELL_TYPE::OCC:
                         if(is_empty){
-                            this->marker.points.push_back(pose.position);
-                            this->marker.colors.push_back(this->c_occ);
+                            this->cell_marker.points.push_back(pose.position);
+                            this->cell_marker.colors.push_back(this->c_occ);
                         }
-                        else this->marker.colors[idx] = this->c_occ;
+                        else this->cell_marker.colors[idx] = this->c_occ;
                         idx++;
                         break;
                 }
@@ -385,7 +424,8 @@ class SC_planner{
             }
         }
         // this->initialized_markers = true;
-        this->MarkgerPub->publish(this->marker);
+        this->MarkerPub->publish(this->cell_marker);
+        this->MarkerPub->publish(this->path_marker);
     }
 
     void move(void){
