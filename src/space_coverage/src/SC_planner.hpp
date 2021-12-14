@@ -2,6 +2,7 @@
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
+int DEBUG = 1;
 
 enum SC_CELL_TYPE{OCC = 1,FREE = 0};
 
@@ -34,6 +35,7 @@ class SC_planner{
     float cell_size_m;
     uint16_t cell_size_pix;
     cv::Mat_<uchar> gridMap; //0 - Invalid Cell, 1 - Free Cell, 2 - Occ Cell
+    cv::Mat_<uchar> visitedTimes; //Array with the number of times a cell has been visited
     cv::Mat_<uchar> *baseMap;
     float baseMap_resolution;
 
@@ -54,6 +56,7 @@ class SC_planner{
     bool initialPose_defined = false;
     grid_cord last_goal;
     grid_cord current_goal;
+    bool validCells[4]; //0 - esquerda 1- baixo ... 
 
     MoveBaseClient *MB_client;
 
@@ -171,7 +174,29 @@ class SC_planner{
     }
 
     void detect_neighbors(const grid_cord &current_cell){
+        printf("Left Cell: %u,%u\n",current_cell.j-1,current_cell.i);
+        if(this->gridMap.at<uchar>(current_cell.i,current_cell.j-1) == 1)
+            this->validCells[0] = true;
+        else
+            this->validCells[0] = false; 
+
+        printf("Down Cell: %u,%u\n",current_cell.j,current_cell.i-1);
+        if(this->gridMap.at<uchar>(current_cell.i-1,current_cell.j) == 1)
+            this->validCells[1] = true;
+        else
+            this->validCells[1] = false;
+
+        printf("Right Cell: %u,%u\n",current_cell.j+1,current_cell.i);
+        if(this->gridMap.at<uchar>(current_cell.i,current_cell.j+1) == 1)
+            this->validCells[2] = true;
+        else
+            this->validCells[2] = false;
         
+        printf("Up Cell: %u,%u\n",current_cell.j,current_cell.i+1);
+        if(this->gridMap.at<uchar>(current_cell.i+1,current_cell.j) == 1)
+            this->validCells[3] = true;
+        else
+            this->validCells[3] = false; 
     }
 
     bool iterate(const geometry_msgs::Pose &current_pose){
@@ -193,7 +218,19 @@ class SC_planner{
             if(this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) == 2){
                 static grid_cord temp_last_goal;
                 temp_last_goal = this->current_goal;
-                this->current_goal = grid_cord(24,14,dir::RIGHT);
+                this->current_goal = grid_cord(33,14,dir::RIGHT);
+                //this->getPlan(current_goal);
+                this->detect_neighbors(temp_gridPose);
+
+                if (DEBUG == 1)
+                {
+                    printf("Curr Cell: %u,%u,%u\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction);
+                    if(this->validCells[0] == true) printf("Left Cell is valid!\n");
+                    if(this->validCells[1] == true) printf("Down Cell is valid!\n");
+                    if(this->validCells[2] == true) printf("Right Cell is valid!\n");
+                    if(this->validCells[3] == true) printf("Up Cell is valid!\n");
+                }
+
                 this->last_goal = temp_last_goal;
                 this->last_pose = current_pose;
 
@@ -218,9 +255,10 @@ class SC_planner{
         return true;
     }
 
-    grid_cord decisionBase(void){
-        grid_cord dummy;
-        return dummy;
+    grid_cord decisionBase(grid_cord actual_pose){
+        grid_cord next_pose;
+
+        return next_pose;
     }
 
     geometry_msgs::Pose transform_grid_to_world(const grid_cord &cord){
@@ -376,4 +414,10 @@ class SC_planner{
         }
     }
 
+    void getPlan(grid_cord startCell){
+        this->visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1);
+        //this->visitedTimes.at<uchar>(startCell.i,startCell.j) += 1;
+        //printf("Test: %u\n",this->visitedTimes.at<uchar>(startCell.i,startCell.j));
+
+    }
 };
