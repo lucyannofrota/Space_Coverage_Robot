@@ -6,6 +6,8 @@ typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseCl
 
 int DEBUG = 0;
 
+bool ORIENTATION = false;
+
 enum SC_CELL_TYPE{OCC = 2,FREE = 1,INVALID = 0};
 
 enum dir{UP,DOWN,LEFT,RIGHT};
@@ -30,6 +32,15 @@ struct grid_cord{
     }
 };
 
+// struct cell{
+//     uchar gridValue;
+//     uchar times_visited;
+//     cell(void){
+//         this->gridValue = 0;
+//         this->times_visited = 0;
+//     }
+// };
+
 class SC_planner{
 
     private:
@@ -37,7 +48,6 @@ class SC_planner{
     float cell_size_m;
     uint16_t cell_size_pix;
     cv::Mat_<uchar> gridMap; //0 - Invalid Cell, 1 - Free Cell, 2 - Occ Cell
-    cv::Mat_<uchar> visitedTimes; //Array with the number of times a cell has been visited
     cv::Mat_<uchar> *baseMap;
     float baseMap_resolution;
 
@@ -50,17 +60,16 @@ class SC_planner{
     // Cell_colors
     std_msgs::ColorRGBA c_occ;
     std_msgs::ColorRGBA c_free;
-    bool initialized_markers;
+    bool initialized_path_markers;
     unsigned int mapExtremes[4];
 
 
     // geometry_msgs::Pose last_pose;
     grid_cord gridPose;
-    bool initialPose_defined = false;
+    // bool initialPose_defined = false;
     // grid_cord last_goal;
     grid_cord current_goal;
-    std::list <grid_cord> path; //List with the nodes the robot went 
-    bool stuck; //If the robot is stuck with no new cells to discover
+    // bool stuck; //If the robot is stuck with no new cells to discover
 
 
     MoveBaseClient *MB_client;
@@ -85,7 +94,8 @@ class SC_planner{
         this->c_free.g = 80.0/255.0;
         this->c_free.b = 1.0;
 
-        this->initialized_markers = false;
+        // this->initialized_markers = false;
+        this->initialized_path_markers = false;
     }
 
     ~SC_planner(){
@@ -106,7 +116,7 @@ class SC_planner{
         uint16_t width = (int)floor((float) msg.info.width/cell_size_pix);
 
         this->gridMap = cv::Mat::zeros(height,width,CV_8UC1);
-        this->visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1);
+        // this->visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1);
 
         std::cout << "Cell Size: " << this->cell_size_pix << std::endl;
         std::cout << "Map h: " << this->gridMap.rows << std::endl;
@@ -249,11 +259,17 @@ class SC_planner{
         if (DEBUG == 1)
             printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
 
+        if(!initialized_path_markers){
+            // spiralSTP(temp_gridPose,validCells);
+        }
+
         if(this->goal_reached){
             
-            spiralSTC_online(temp_gridPose,validCells);
+            this->current_goal = spiralSTP_online(temp_gridPose,validCells);
+            // this->current_goal.direction = temp_gridPose.direction;
 
-            this->goal_pub(temp_gridPose);
+
+            this->goal_pub(current_pose);
             
         }
 
@@ -261,7 +277,9 @@ class SC_planner{
         return true;
     }
 
-    void spiralSTC_online(const grid_cord &temp_gridPose, bool *validCells){
+    grid_cord spiralSTP_online(const grid_cord &temp_gridPose, bool *validCells){
+        static std::list <grid_cord> path; //List with the nodes the robot went 
+        static grid_cord next_goal;
         this->detect_neighbors(temp_gridPose,validCells);
         if (DEBUG == 1)
         {
@@ -271,65 +289,75 @@ class SC_planner{
             if(validCells[2] == true) printf("Right Cell is valid!\n");
             if(validCells[3] == true) printf("Up Cell is valid!\n");
         }
-
-        grid_cord next_goal;
         bool stuck = this->decisionBase(temp_gridPose,next_goal,validCells);
 
         // If the Robot gets stuck
-        while (stuck == true)
+        while(stuck == true)
         {
-            this->path.reverse(); //Reverse the list to get the last nodes
-            for (auto itr = this->path.begin(); itr != this->path.end(); itr++) //Go through the list
+            path.reverse(); //Reverse the list to get the last nodes
+            for(auto itr = path.begin(); itr != path.end(); itr++) //Go through the list
             {
                 this->detect_neighbors(*itr,validCells); //Test the node
-                // this->current_goal = 
                 stuck = this->decisionBase(*itr,next_goal,validCells);
                 //If the node "unstucks" the robot -> Proceed
                 if(stuck == false)
                 {
-                    this->path.reverse();
+                    path.reverse();
                     break;
                 }
             }
         }
-        this->current_goal = next_goal;
+
+        static cv::Mat_<uchar> visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1); //Array with the number of times a cell has been visited
+
+        visitedTimes.at<uchar>(temp_gridPose.i,temp_gridPose.j) += 1;
+        path.push_back(next_goal);
+        // if(path.size()>100){
+        //     for(int i = 0;i<20;i++){
+        //         printf("Clearing the path, for memory management...\n");
+        //         path.erase(path.begin());
+        //     }
+        // }
+        return next_goal;
     }
-/*
-    void spiralSTC(const grid_cord &temp_gridPose,bool *validCells){
-        this->detect_neighbors(temp_gridPose,validCells);
-        if (DEBUG == 1)
-        {
-            printf("Curr Cell: %u,%u,%u\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction);
-            if(validCells[0] == true) printf("Left Cell is valid!\n");
-            if(validCells[1] == true) printf("Down Cell is valid!\n");
-            if(validCells[2] == true) printf("Right Cell is valid!\n");
-            if(validCells[3] == true) printf("Up Cell is valid!\n");
-        }
 
-        grid_cord next_goal;
-        bool stuck = this->decisionBase(temp_gridPose,next_goal,validCells);
+    // void spiralSTP(const grid_cord &temp_gridPose,bool *validCells){
+    //     static std::list <grid_cord> path; //List with the nodes the robot went 
+    //     static grid_cord next_goal;
+    //     this->detect_neighbors(temp_gridPose,validCells);
+    //     bool stuck = this->decisionBase(temp_gridPose,next_goal,validCells);
 
-        // If the Robot gets stuck
-        while (stuck == true)
-        {
-            this->path.reverse(); //Reverse the list to get the last nodes
-            for (auto itr = this->path.begin(); itr != this->path.end(); itr++) //Go through the list
-            {
-                this->detect_neighbors(*itr,validCells); //Test the node
-                // this->current_goal = 
-                stuck = this->decisionBase(*itr,next_goal,validCells);
-                //If the node "unstucks" the robot -> Proceed
-                if(stuck == false)
-                {
-                    this->path.reverse();
-                    break;
-                }
-            }
-        }
-        this->current_goal = next_goal;
-    }*/
+    //     // If the Robot gets stuck
+    //     while(stuck == true)
+    //     {
+    //         path.reverse(); //Reverse the list to get the last nodes
+    //         for(auto itr = path.begin(); itr != path.end(); itr++) //Go through the list
+    //         {
+    //             this->detect_neighbors(*itr,validCells); //Test the node
+    //             stuck = this->decisionBase(*itr,next_goal,validCells);
+    //             //If the node "unstucks" the robot -> Proceed
+    //             if(stuck == false)
+    //             {
+    //                 path.reverse();
+    //                 break;
+    //             }
+    //         }
+    //     }
 
-    void goal_pub(const grid_cord &temp_gridPose){
+    //     static cv::Mat_<uchar> visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1); //Array with the number of times a cell has been visited
+
+    //     visitedTimes.at<uchar>(temp_gridPose.i,temp_gridPose.j) += 1;
+    //     path.push_back(next_goal);
+    //     // if(path.size()>100){
+    //     //     for(int i = 0;i<20;i++){
+    //     //         printf("Clearing the path, for memory management...\n");
+    //     //         path.erase(path.begin());
+    //     //     }
+    //     // }
+    //     return next_goal;
+    // }
+
+    void goal_pub(const geometry_msgs::Pose &current_pose){
         // Publishing goal
         if(this->MB_client != NULL){
             move_base_msgs::MoveBaseGoal goal;
@@ -337,15 +365,8 @@ class SC_planner{
             goal.target_pose.header.stamp = ros::Time::now();
 
             goal.target_pose.pose = this->transform_grid_to_world(this->current_goal);
+            // if(ORIENTATION) goal.target_pose.pose.orientation = 
             printf("Sending Goal!\n");
-            this->visitedTimes.at<uchar>(temp_gridPose.i,temp_gridPose.j) += 1;
-            this->path.push_back(this->current_goal);
-            if (this->path.size()>100){
-                for (int i = 0;i<20;i++){
-                    printf("Clearing the path, for memory management...\n");
-                    this->path.erase(this->path.begin());
-                }
-            }
             printf("Goal: %f,%f,%f\n",goal.target_pose.pose.position.x,goal.target_pose.pose.position.y,tf::getYaw(goal.target_pose.pose.orientation));
             printf("Cell Goal: %u,%u,%u\n",this->current_goal.j,this->current_goal.i,this->current_goal.direction);
             this->goal_reached = false;
