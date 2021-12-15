@@ -1,8 +1,9 @@
 #include <tf/tf.h>
+#include <list> //For the path list
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
-int DEBUG = 1;
+int DEBUG = 0;
 
 enum SC_CELL_TYPE{OCC = 2,FREE = 1,INVALID = 0};
 
@@ -57,6 +58,9 @@ class SC_planner{
     grid_cord last_goal;
     grid_cord current_goal;
     bool validCells[4]; //0 - esquerda 1- baixo ... 
+    std::list <grid_cord> path; //List with the nodes the robot went 
+    bool stuck; //If the robot is stuck with no new cells to discover
+    
 
     MoveBaseClient *MB_client;
 
@@ -100,6 +104,7 @@ class SC_planner{
         uint16_t width = (int)floor((float) msg.info.width/cell_size_pix);
 
         this->gridMap = cv::Mat::zeros(height,width,CV_8UC1);
+        this->visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1);
 
         std::cout << "Cell Size: " << this->cell_size_pix << std::endl;
         std::cout << "Map h: " << this->gridMap.rows << std::endl;
@@ -174,25 +179,21 @@ class SC_planner{
     }
 
     void detect_neighbors(const grid_cord &current_cell){
-        printf("Left Cell: %u,%u\n",current_cell.j-1,current_cell.i);
         if(this->gridMap.at<uchar>(current_cell.i,current_cell.j-1) == 1)
             this->validCells[0] = true;
         else
             this->validCells[0] = false; 
 
-        printf("Down Cell: %u,%u\n",current_cell.j,current_cell.i-1);
         if(this->gridMap.at<uchar>(current_cell.i-1,current_cell.j) == 1)
             this->validCells[1] = true;
         else
             this->validCells[1] = false;
 
-        printf("Right Cell: %u,%u\n",current_cell.j+1,current_cell.i);
         if(this->gridMap.at<uchar>(current_cell.i,current_cell.j+1) == 1)
             this->validCells[2] = true;
         else
             this->validCells[2] = false;
         
-        printf("Up Cell: %u,%u\n",current_cell.j,current_cell.i+1);
         if(this->gridMap.at<uchar>(current_cell.i+1,current_cell.j) == 1)
             this->validCells[3] = true;
         else
@@ -205,7 +206,8 @@ class SC_planner{
         static grid_cord temp_gridPose;
         temp_gridPose = this->transform_world_to_grid(current_pose);
         if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::FREE) this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
-        printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
+        if (DEBUG == 1)
+            printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
 
         // TODO downsampling
         if(!this->initialPose_defined){
@@ -219,10 +221,7 @@ class SC_planner{
             if(this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) == SC_CELL_TYPE::OCC){
                 static grid_cord temp_last_goal;
                 temp_last_goal = this->current_goal;
-                this->current_goal = grid_cord(33,14,dir::RIGHT);
-                //this->getPlan(current_goal);
                 this->detect_neighbors(temp_gridPose);
-
                 if (DEBUG == 1)
                 {
                     printf("Curr Cell: %u,%u,%u\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction);
@@ -230,6 +229,25 @@ class SC_planner{
                     if(this->validCells[1] == true) printf("Down Cell is valid!\n");
                     if(this->validCells[2] == true) printf("Right Cell is valid!\n");
                     if(this->validCells[3] == true) printf("Up Cell is valid!\n");
+                }
+
+                this->current_goal = this->decisionBase(temp_gridPose);
+
+                // If the Robot gets stuck
+                while (this->stuck == true)
+                {
+                    this->path.reverse(); //Reverse the list to get the last nodes
+                    for (auto itr = this->path.begin(); itr != this->path.end(); itr++) //Go through the list
+                    {
+                        this->detect_neighbors(*itr); //Test the node
+                        this->current_goal = this->decisionBase(*itr);
+                        //If the node "unstucks" the robot -> Proceed
+                        if(this->stuck == false)
+                        {
+                            this->path.reverse();
+                            break;
+                        }
+                    }
                 }
 
                 this->last_goal = temp_last_goal;
@@ -244,6 +262,14 @@ class SC_planner{
 
                     goal.target_pose.pose = this->transform_grid_to_world(this->current_goal);
                     printf("Sending Goal!\n");
+                    this->visitedTimes.at<uchar>(temp_gridPose.i,temp_gridPose.j) += 1;
+                    this->path.push_back(this->current_goal);
+                    if (this->path.size()>100){
+                        for (int i = 0;i<20;i++){
+                            printf("Clearing the path, for memory management...\n");
+                            this->path.erase(this->path.begin());
+                        }
+                    }
                     printf("Goal: %f,%f,%f\n",goal.target_pose.pose.position.x,goal.target_pose.pose.position.y,tf::getYaw(goal.target_pose.pose.orientation));
                     printf("Cell Goal: %u,%u,%u\n",this->current_goal.j,this->current_goal.i,this->current_goal.direction);
                     this->MB_client->sendGoal(goal);
@@ -258,6 +284,27 @@ class SC_planner{
 
     grid_cord decisionBase(grid_cord actual_pose){
         grid_cord next_pose;
+        next_pose = actual_pose;
+
+        if (this->validCells[0] == true)
+        {
+            next_pose= grid_cord(actual_pose.i,actual_pose.j-1);
+            this->stuck = false;
+        }
+        else if (this->validCells[1] == true){
+            next_pose = grid_cord(actual_pose.i-1,actual_pose.j);
+            this->stuck = false;
+        }
+        else if (this->validCells[2] == true){
+            next_pose = grid_cord(actual_pose.i,actual_pose.j+1);
+            this->stuck = false;
+        }
+        else if (this->validCells[3] == true){
+            next_pose = grid_cord(actual_pose.i+1,actual_pose.j);
+            this->stuck = false;
+        }
+        else
+            this->stuck = true;
 
         return next_pose;
     }
@@ -421,7 +468,6 @@ class SC_planner{
     }
 
     void getPlan(grid_cord startCell){
-        this->visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1);
         //this->visitedTimes.at<uchar>(startCell.i,startCell.j) += 1;
         //printf("Test: %u\n",this->visitedTimes.at<uchar>(startCell.i,startCell.j));
 
