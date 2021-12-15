@@ -15,7 +15,7 @@
 #include <actionlib/client/simple_action_client.h>
 
 
-const float cell_size_m = (0.225*2.0*2)*(0.7); // 2* Robot radius
+const float cell_size_m = (0.225*2.0)*(0.7)*2; // 2* Robot radius
 const float occ_threshold = 0.5;
 
 #include "SC_planner.hpp"
