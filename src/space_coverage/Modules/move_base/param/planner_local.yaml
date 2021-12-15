@@ -16,8 +16,8 @@ TrajectoryPlannerROS:
   acc_lim_y: 1.8 #2.5
 
   xy_goal_tolerance: 0.1.7 #0.25 #0.5 -- tolerance a bit high?
-  # yaw_goal_tolerance: 0.07 #6.29 in radians
-  yaw_goal_tolerance: 1.57 #6.29 in radians // No yaw lim
+  yaw_goal_tolerance: 0.07 #6.29 in radians
+  # yaw_goal_tolerance: 1.57 #6.29 in radians // No yaw lim
 
   holonomic_robot: false
 

@@ -30,6 +30,9 @@ struct grid_cord{
         this->j = j_;
         this->direction = direction_;
     }
+    void print(void){
+        printf("(X: %u,Y: %u)\n", this->j, this->i);
+    }
 };
 
 // struct cell{
@@ -225,23 +228,31 @@ class SC_planner{
     //     return true;
     // }
 
-    void detect_neighbors(const grid_cord &current_cell, bool *validCells){
-        if(this->gridMap.at<uchar>(current_cell.i,current_cell.j-1) == 1)
+    bool has_free_neighbors(bool *validCells){
+        uint8_t counter = 0;
+        for(uint8_t i = 0; i < 4; i++){
+            counter += validCells[i] ? 1 : 0;
+        }
+        return counter != 0;
+    }
+
+    void detect_neighbors(cv::Mat_<uchar> &gridMap, const grid_cord &current_cell, bool *validCells){
+        if(gridMap.at<uchar>(current_cell.i,current_cell.j-1) == SC_CELL_TYPE::FREE)
             validCells[0] = true;
         else
             validCells[0] = false; 
 
-        if(this->gridMap.at<uchar>(current_cell.i-1,current_cell.j) == 1)
+        if(gridMap.at<uchar>(current_cell.i-1,current_cell.j) == SC_CELL_TYPE::FREE)
             validCells[1] = true;
         else
             validCells[1] = false;
 
-        if(this->gridMap.at<uchar>(current_cell.i,current_cell.j+1) == 1)
+        if(gridMap.at<uchar>(current_cell.i,current_cell.j+1) == SC_CELL_TYPE::FREE)
             validCells[2] = true;
         else
             validCells[2] = false;
         
-        if(this->gridMap.at<uchar>(current_cell.i+1,current_cell.j) == 1)
+        if(gridMap.at<uchar>(current_cell.i+1,current_cell.j) == SC_CELL_TYPE::FREE)
             validCells[3] = true;
         else
             validCells[3] = false; 
@@ -254,18 +265,29 @@ class SC_planner{
         temp_gridPose = this->transform_world_to_grid(current_pose);
         if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::FREE) this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
 
-        bool validCells[4]; //0 - esquerda 1- baixo ... 
-
         if (DEBUG == 1)
             printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
 
         if(!initialized_path_markers){
-            // spiralSTP(temp_gridPose,validCells);
+            static std::list <grid_cord> full_path;
+            cv::Mat_<uchar> temp_gridMap;
+            this->gridMap.copyTo(temp_gridMap);
+            spiralSTP(temp_gridMap,temp_gridPose,full_path);
+
+            geometry_msgs::Point pt = current_pose.position;
+            this->path_marker.points.push_back(pt);
+
+            for(auto itr = full_path.begin(); itr != full_path.end(); itr++){
+                geometry_msgs::Pose tempP = transform_grid_to_world(*itr);
+                this->path_marker.points.push_back(tempP.position);
+            }
+
+            initialized_path_markers = true;
         }
 
         if(this->goal_reached){
             
-            this->current_goal = spiralSTP_online(temp_gridPose,validCells);
+            this->current_goal = spiralSTP_online(temp_gridPose);
             // this->current_goal.direction = temp_gridPose.direction;
 
 
@@ -277,19 +299,20 @@ class SC_planner{
         return true;
     }
 
-    grid_cord spiralSTP_online(const grid_cord &temp_gridPose, bool *validCells){
+    grid_cord spiralSTP_online(const grid_cord &current_gridPose){
+        bool validCells[4]; //0 - esquerda 1- baixo ... 
         static std::list <grid_cord> path; //List with the nodes the robot went 
         static grid_cord next_goal;
-        this->detect_neighbors(temp_gridPose,validCells);
+        this->detect_neighbors(this->gridMap,current_gridPose,validCells);
         if (DEBUG == 1)
         {
-            printf("Curr Cell: %u,%u,%u\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction);
+            printf("Curr Cell: %u,%u,%u\n",current_gridPose.j,current_gridPose.i,current_gridPose.direction);
             if(validCells[0] == true) printf("Left Cell is valid!\n");
             if(validCells[1] == true) printf("Down Cell is valid!\n");
             if(validCells[2] == true) printf("Right Cell is valid!\n");
             if(validCells[3] == true) printf("Up Cell is valid!\n");
         }
-        bool stuck = this->decisionBase(temp_gridPose,next_goal,validCells);
+        bool stuck = this->decisionBase(current_gridPose,next_goal,validCells);
 
         // If the Robot gets stuck
         while(stuck == true)
@@ -297,7 +320,7 @@ class SC_planner{
             path.reverse(); //Reverse the list to get the last nodes
             for(auto itr = path.begin(); itr != path.end(); itr++) //Go through the list
             {
-                this->detect_neighbors(*itr,validCells); //Test the node
+                this->detect_neighbors(this->gridMap,*itr,validCells); //Test the node
                 stuck = this->decisionBase(*itr,next_goal,validCells);
                 //If the node "unstucks" the robot -> Proceed
                 if(stuck == false)
@@ -310,7 +333,7 @@ class SC_planner{
 
         static cv::Mat_<uchar> visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1); //Array with the number of times a cell has been visited
 
-        visitedTimes.at<uchar>(temp_gridPose.i,temp_gridPose.j) += 1;
+        visitedTimes.at<uchar>(current_gridPose.i,current_gridPose.j) += 1;
         path.push_back(next_goal);
         // if(path.size()>100){
         //     for(int i = 0;i<20;i++){
@@ -321,41 +344,59 @@ class SC_planner{
         return next_goal;
     }
 
-    // void spiralSTP(const grid_cord &temp_gridPose,bool *validCells){
-    //     static std::list <grid_cord> path; //List with the nodes the robot went 
-    //     static grid_cord next_goal;
-    //     this->detect_neighbors(temp_gridPose,validCells);
-    //     bool stuck = this->decisionBase(temp_gridPose,next_goal,validCells);
+    void spiralSTP(cv::Mat_<uchar> &temp_gridMap, grid_cord current_gridPose, std::list <grid_cord> &path){
+        // static std::list <grid_cord> path; //List with the nodes the robot went 
+        // static grid_cord next_goal;
+        bool validCells[4]; //0 - esquerda 1- baixo ... 
+        grid_cord next_gridPose;
 
-    //     // If the Robot gets stuck
-    //     while(stuck == true)
-    //     {
-    //         path.reverse(); //Reverse the list to get the last nodes
-    //         for(auto itr = path.begin(); itr != path.end(); itr++) //Go through the list
-    //         {
-    //             this->detect_neighbors(*itr,validCells); //Test the node
-    //             stuck = this->decisionBase(*itr,next_goal,validCells);
-    //             //If the node "unstucks" the robot -> Proceed
-    //             if(stuck == false)
-    //             {
-    //                 path.reverse();
-    //                 break;
-    //             }
-    //         }
-    //     }
 
-    //     static cv::Mat_<uchar> visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1); //Array with the number of times a cell has been visited
+        temp_gridMap.at<uchar>(current_gridPose.i,current_gridPose.j) = SC_CELL_TYPE::OCC;
 
-    //     visitedTimes.at<uchar>(temp_gridPose.i,temp_gridPose.j) += 1;
-    //     path.push_back(next_goal);
-    //     // if(path.size()>100){
-    //     //     for(int i = 0;i<20;i++){
-    //     //         printf("Clearing the path, for memory management...\n");
-    //     //         path.erase(path.begin());
-    //     //     }
-    //     // }
-    //     return next_goal;
-    // }
+        do{
+            this->detect_neighbors(temp_gridMap,current_gridPose,validCells);
+            if(this->decisionBase(current_gridPose,next_gridPose,validCells)){
+                return;
+            }
+            else{
+                next_gridPose.print();
+                path.push_back(next_gridPose);
+                spiralSTP(temp_gridMap,next_gridPose, path);
+            }
+        }while(has_free_neighbors(validCells));
+        // bool stuck = this->decisionBase(current_gridPose,next_gridPose,validCells);
+
+        // If the Robot gets stuck
+        // while(stuck == true)
+        // {
+        //     path.reverse(); //Reverse the list to get the last nodes
+        //     for(auto itr = path.begin(); itr != path.end(); itr++) //Go through the list
+        //     {
+        //         this->detect_neighbors(*itr,validCells); //Test the node
+        //         stuck = this->decisionBase(*itr,next_gridPose,validCells);
+        //         //If the node "unstucks" the robot -> Proceed
+        //         if(stuck == false)
+        //         {
+        //             path.reverse();
+        //             break;
+        //         }
+        //     }
+        // }
+
+        // static cv::Mat_<uchar> visitedTimes = cv::Mat::zeros(this->gridMap.rows,this->gridMap.cols,CV_8UC1); //Array with the number of times a cell has been visited
+
+        // visitedTimes.at<uchar>(current_gridPose.i,current_gridPose.j) += 1;
+        // path.push_back(next_gridPose);
+        // if(path.size()>100){
+        //     for(int i = 0;i<20;i++){
+        //         printf("Clearing the path, for memory management...\n");
+        //         path.erase(path.begin());
+        //     }
+        // }
+
+
+        // return next_gridPose;
+    }
 
     void goal_pub(const geometry_msgs::Pose &current_pose){
         // Publishing goal
@@ -548,41 +589,4 @@ class SC_planner{
         this->MarkerPub->publish(this->path_marker);
     }
 
-    // void move(void){
-    //     for(uint16_t i = 0; i < this->gridMap.rows; i++){
-    //         for(uint16_t j = 0; j < this->gridMap.cols; j++){
-
-    //             // this->gridMap.at<uchar>(i,j);
-    //             // pose = this->transform_grid_to_world(grid_cord(i,j));
-    //             // pose.z = 0.05;
-    //             // switch(this->gridMap.at<uchar>(i,j)){
-    //             //     case 0:
-    //             //         // this->marker.points.push_back(pose);
-    //             //         // this->marker.colors.push_back(this->c_free);
-    //             //         break;
-    //             //     case 1:
-    //             //         if(is_empty){
-    //             //             this->marker.points.push_back(pose);
-    //             //             this->marker.colors.push_back(this->c_free);
-    //             //         }
-    //             //         else this->marker.colors[i*this->gridMap.cols+j] = this->c_free;
-    //             //         break;
-    //             //     case 2:
-    //             //         if(is_empty){
-    //             //             this->marker.points.push_back(pose);
-    //             //             this->marker.colors.push_back(this->c_occ);
-    //             //         }
-    //             //         else this->marker.colors[i*this->gridMap.cols+j] = this->c_occ;
-    //             //         break;
-    //             // }
-    //             // if(this->gridMap.at<uchar>(i,j) == 0;
-    //         }
-    //     }
-    // }
-
-    // void getPlan(grid_cord startCell){
-    //     //this->visitedTimes.at<uchar>(startCell.i,startCell.j) += 1;
-    //     //printf("Test: %u\n",this->visitedTimes.at<uchar>(startCell.i,startCell.j));
-
-    // }
 };
