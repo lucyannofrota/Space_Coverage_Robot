@@ -6,7 +6,7 @@ typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseCl
 
 int DEBUG = 0;
 
-bool ORIENTATION = false;
+bool ORIENTATION = true;
 
 enum SC_CELL_TYPE{OCC = 2,FREE = 1,INVALID = 0};
 
@@ -264,13 +264,19 @@ class SC_planner{
     }
 
     bool hit_detect(const geometry_msgs::Pose &current_pose){
+        const float goal_dist = 0.85;
         static grid_cord temp_gridPose;
         temp_gridPose = this->transform_world_to_grid(current_pose);
         if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::FREE){
             static geometry_msgs::Pose temp_worldPose;
             temp_worldPose = this->transform_grid_to_world(temp_gridPose);
             // return true;
-            return (pow(current_pose.position.x-temp_worldPose.position.x,2)+pow(current_pose.position.y-temp_worldPose.position.y,2)) < 0.7*(this->cell_size_pix*this->baseMap_resolution);
+            static float dx,dy;
+            dx = abs(current_pose.position.x-temp_worldPose.position.x);
+            dy = abs(current_pose.position.y-temp_worldPose.position.y);
+            // if(dx <= 0.7*((this->cell_size_pix*this->baseMap_resolution)/2) && dy <= 0.7*((this->cell_size_pix*this->baseMap_resolution)/2))
+            // return sqrt((pow(current_pose.position.x-temp_worldPose.position.x,2)+pow(current_pose.position.y-temp_worldPose.position.y,2))) <= 0.9*((this->cell_size_pix*this->baseMap_resolution)/2);
+            return (dx <= 0.7*((this->cell_size_pix*this->baseMap_resolution)/2) && dy <= 0.7*((this->cell_size_pix*this->baseMap_resolution)/2));
         }
         else return false;
     }
@@ -285,8 +291,12 @@ class SC_planner{
         if (DEBUG == 1)
             printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
 
-        if(!initialized_path_markers){
-            static std::list <grid_cord> full_path;
+        static std::list <grid_cord> full_path;
+
+        if(full_path.empty()){
+
+            // this->last_goal = transform_world_to_grid(current_pose);
+
             cv::Mat_<uchar> temp_gridMap;
             this->gridMap.copyTo(temp_gridMap);
             spiralSTP(temp_gridMap,temp_gridPose,full_path);
@@ -299,17 +309,45 @@ class SC_planner{
                 this->path_marker.points.push_back(tempP.position);
             }
 
-            initialized_path_markers = true;
+            this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
         }
+
+        // if(!initialized_path_markers){
+        //     cv::Mat_<uchar> temp_gridMap;
+        //     this->gridMap.copyTo(temp_gridMap);
+        //     spiralSTP(temp_gridMap,temp_gridPose,full_path);
+
+        //     geometry_msgs::Point pt = current_pose.position;
+        //     this->path_marker.points.push_back(pt);
+
+        //     for(auto itr = full_path.begin(); itr != full_path.end(); itr++){
+        //         geometry_msgs::Pose tempP = transform_grid_to_world(*itr);
+        //         this->path_marker.points.push_back(tempP.position);
+        //     }
+
+        //     initialized_path_markers = true;
+        // }
 
         // if(this->hit_detect(current_pose)) this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
 
-        if(this->hit_detect(current_pose)/*this->goal_reached*/){
+        bool hit = this->hit_detect(current_pose);
 
-            this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
 
-            this->current_goal = spiralSTP_online(temp_gridPose);
+        if(hit || this->goal_reached){
+
+            printf("Hit: %u, gr: %u\n",hit,this->goal_reached);
+
+            this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) = SC_CELL_TYPE::OCC;
+
+            // this->current_goal = spiralSTP_online(temp_gridPose);
             // this->current_goal.direction = temp_gridPose.direction;
+
+            // full_path.
+
+
+            // this->last_goal = this->current_goal;
+
+            this->current_goal = (*(full_path.begin())); full_path.pop_front();
 
 
             this->goal_pub(current_pose);
@@ -425,9 +463,10 @@ class SC_planner{
             move_base_msgs::MoveBaseGoal goal;
             goal.target_pose.header.frame_id = "map";
             goal.target_pose.header.stamp = ros::Time::now();
+// geometry_msgs::Pose
 
             goal.target_pose.pose = this->transform_grid_to_world(this->current_goal);
-            // if(ORIENTATION) goal.target_pose.pose.orientation = 
+            if(ORIENTATION) goal.target_pose.pose.orientation = current_pose.orientation;
             printf("Sending Goal!\n");
             printf("Goal: %f,%f,%f\n",goal.target_pose.pose.position.x,goal.target_pose.pose.position.y,tf::getYaw(goal.target_pose.pose.orientation));
             printf("Cell Goal: %u,%u,%u\n",this->current_goal.j,this->current_goal.i,this->current_goal.direction);
