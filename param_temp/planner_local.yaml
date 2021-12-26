@@ -1,0 +1,35 @@
+controller_frequency: 5.0 #(i5=20; fujitsu=10) 
+
+base_local_planner: "dwa_local_planner/DWAPlannerROS"
+
+TrajectoryPlannerROS:
+  max_vel_x: 0.7 # 0.4 0.75 #1.0 0.25
+  min_vel_x: 0.1 #0.2  #0.4 -- too high?
+  
+  max_vel_theta: 1
+  min_vel_theta: -1
+  min_in_place_vel_theta: 0.4
+
+  #max_rotational_vel: 1.0
+  #min_in_place_rotational_vel: 0.4
+
+  acc_lim_theta: 3.2 #2.5    #3.2 -- maybe too high?
+  acc_lim_x: 1.8 #2.5
+  acc_lim_y: 1.8 #2.5
+
+  xy_goal_tolerance: 0.17 #0.25 #0.5 -- tolerance a bit high?
+  # yaw_goal_tolerance: 0.07 #6.29 in radians
+  yaw_goal_tolerance: 1.57 #6.29 in radians // No yaw lim
+
+  holonomic_robot: false
+
+  meter_scoring: true
+
+#  transform_tolerance: 0.5
+
+  sim_time: 4.0
+
+#  pdist_scale: 0.6 #0.5 #maybe we can reduce this a bit...
+#  gdist_scale: 0.2 #0.3 #increase?
+occdist_scale: 10.0 #0.1 0.4 0.05 0.02  0.01 #sensible!
+

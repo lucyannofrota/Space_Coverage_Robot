@@ -15,7 +15,7 @@
 #include <actionlib/client/simple_action_client.h>
 
 
-const float cell_size_m = (0.225*2.0)*(0.7)*2; // 2* Robot radius
+const float cell_size_m = (0.225*2.0)*(1); // 2* Robot radius
 const float occ_threshold = 0.5;
 
 #include "SC_planner.hpp"
@@ -154,7 +154,7 @@ int main(int argc, char **argv){
         ros::Publisher vis_pub = nh.advertise<visualization_msgs::Marker>( "/SC_Planner_Markers", 5 );
         // ros::Publisher goal_pub = nh.advertise<visualization_msgs::Marker>( "/move_base/goal", 5 );
 
-        planner->define_rviz_Markers(vis_pub);
+        planner->set_rviz_handle(vis_pub);
         // planner->define_pubGoal(goal_pub);
 
 

@@ -156,11 +156,15 @@ class SC_planner{
                 continue;
             }
         }
-
+        this->define_rviz_Markers();
     }
 
-    void define_rviz_Markers(ros::Publisher &publisher){
+    void set_rviz_handle(ros::Publisher &publisher){
         this->MarkerPub = &publisher;
+    }
+
+    void define_rviz_Markers(void){
+        const float spacing = 0.01;
 
         // Base marker definition
         this->cell_marker.header.frame_id = "map";
@@ -176,8 +180,9 @@ class SC_planner{
         this->cell_marker.pose.orientation.y = 0.0;
         this->cell_marker.pose.orientation.z = 0.0;
         this->cell_marker.pose.orientation.w = 1.0;
-        this->cell_marker.scale.x = this->cell_size_m;
-        this->cell_marker.scale.y = this->cell_size_m;
+        this->cell_marker.scale.x = this->cell_size_pix*this->baseMap_resolution-spacing;
+        printf("Cell_size: %f\n",this->cell_size_pix*this->baseMap_resolution-spacing);
+        this->cell_marker.scale.y = this->cell_size_pix*this->baseMap_resolution-spacing;
         this->cell_marker.scale.z = 0.01;
         // this->marker.color.a = 1.0; // Don't forget to set the alpha!
         this->cell_marker.lifetime.fromSec(0.15);
@@ -258,12 +263,24 @@ class SC_planner{
             validCells[3] = false; 
     }
 
+    bool hit_detect(const geometry_msgs::Pose &current_pose){
+        static grid_cord temp_gridPose;
+        temp_gridPose = this->transform_world_to_grid(current_pose);
+        if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::FREE){
+            static geometry_msgs::Pose temp_worldPose;
+            temp_worldPose = this->transform_grid_to_world(temp_gridPose);
+            // return true;
+            return (pow(current_pose.position.x-temp_worldPose.position.x,2)+pow(current_pose.position.y-temp_worldPose.position.y,2)) < 0.7*(this->cell_size_pix*this->baseMap_resolution);
+        }
+        else return false;
+    }
+
     bool iterate(const geometry_msgs::Pose &current_pose){
-        
+        // this->pubMarkers(); return false;
+
         // Hit detection
         static grid_cord temp_gridPose;
         temp_gridPose = this->transform_world_to_grid(current_pose);
-        if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::FREE) this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
 
         if (DEBUG == 1)
             printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
@@ -285,8 +302,12 @@ class SC_planner{
             initialized_path_markers = true;
         }
 
-        if(this->goal_reached){
-            
+        // if(this->hit_detect(current_pose)) this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
+
+        if(this->hit_detect(current_pose)/*this->goal_reached*/){
+
+            this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
+
             this->current_goal = spiralSTP_online(temp_gridPose);
             // this->current_goal.direction = temp_gridPose.direction;
 
@@ -359,7 +380,7 @@ class SC_planner{
                 return;
             }
             else{
-                next_gridPose.print();
+                // next_gridPose.print();
                 path.push_back(next_gridPose);
                 spiralSTP(temp_gridMap,next_gridPose, path);
             }
@@ -472,9 +493,8 @@ class SC_planner{
         out_pose.position.y += this->cell_marker.scale.y/2;
 
         // Grid offset
-        //BUG O tamanho de celula interfere na componente de overlap de escala
-        out_pose.position.x += cord.j*(this->cell_marker.scale.x+this->baseMap_resolution/4); //   /2 para 0.6
-        out_pose.position.y += cord.i*(this->cell_marker.scale.y+this->baseMap_resolution/4); // 0.02
+        out_pose.position.x += cord.j*(this->cell_size_pix*this->baseMap_resolution); //   /2 para 0.6
+        out_pose.position.y += cord.i*(this->cell_size_pix*this->baseMap_resolution); // 0.02
         // tf::getYaw(pose.orientation)
         float angle;
         switch(cord.direction){
@@ -514,8 +534,8 @@ class SC_planner{
         temp.position.y -= this->cell_marker.scale.y/2;
 
         // Grid offset
-        cord_out.j = round(temp.position.x/(this->cell_marker.scale.x+this->baseMap_resolution/4));
-        cord_out.i = round(temp.position.y/(this->cell_marker.scale.y+this->baseMap_resolution/4));
+        cord_out.j = round(temp.position.x/(this->cell_size_pix*this->baseMap_resolution));
+        cord_out.i = round(temp.position.y/(this->cell_size_pix*this->baseMap_resolution));
 
         if(cord_out.j >= this->gridMap.cols) cord_out.j = this->gridMap.cols;
         if(cord_out.i >= this->gridMap.rows) cord_out.i = this->gridMap.rows;
