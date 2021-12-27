@@ -10,4 +10,4 @@ local_costmap:
   track_unknown_space: false
 
   cost_scaling_factor: 0.0
-  inflation_radius: 0.05
+  inflation_radius: 0.1

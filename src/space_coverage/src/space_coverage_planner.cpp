@@ -15,7 +15,7 @@
 #include <actionlib/client/simple_action_client.h>
 
 
-const float cell_size_m = (0.225*2.0)*(1); // 2* Robot radius
+double cell_size_m; // 2* Robot radius
 const float occ_threshold = 0.5;
 
 #include "SC_planner.hpp"
@@ -134,9 +134,21 @@ void mapCallBack(const nav_msgs::OccupancyGrid& msg){
 }
 
 int main(int argc, char **argv){
+    using std::cout;
+    using std::endl;
     try{
         ros::init(argc, argv, "SC_Planner");
         ros::NodeHandle nh;
+
+        double map_offset[2], goal_dist;
+
+        // double x_offset, x_offset;
+        nh.param("/space_coverage_planner/cell_size", cell_size_m, (0.225*2.0));
+        nh.param("/space_coverage_planner/goal_dist", goal_dist, 0.9);
+        if(!(nh.param("/space_coverage_planner/x_offset", map_offset[0], 0.0) && nh.param("/space_coverage_planner/y_offset", map_offset[1], 0.0))) ROS_ERROR("Missing Map offset arguments.");
+
+        // cout << "Param1 " << p1 << endl;
+        // printf("Param: %s\n",p1);
 
         cv::namedWindow("Space Coverage Planner");
 
@@ -148,7 +160,7 @@ int main(int argc, char **argv){
             ROS_INFO("Waiting for the move_base action server to come up");
         }
 
-        planner = new SC_planner(ac,cell_size_m);
+        planner = new SC_planner(ac,cell_size_m,map_offset,goal_dist);
 
 
         ros::Publisher vis_pub = nh.advertise<visualization_msgs::Marker>( "/SC_Planner_Markers", 5 );
