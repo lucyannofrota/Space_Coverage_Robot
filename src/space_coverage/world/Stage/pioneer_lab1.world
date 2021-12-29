@@ -1,0 +1,10 @@
+include "lab1.inc"
+
+pioneer
+(		  
+  	# Can refer to the robot by this name
+  	name "pioneer0"
+  	pose [ 0.98 9.676777508879683 0.0 -90 ]
+	color "blue"
+)
+

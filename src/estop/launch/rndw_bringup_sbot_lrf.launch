@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+
+<!--- run robot's driver and Hokuyo node -->
+<include file="$(find tsbot_drivers)/launch/sbot_lrf.launch"/>
+
+<!--- run random_walk node -->
+<include file="$(find random_walk)/launch/rndw_tsbot_lrf.launch"/>
+
+</launch>
+

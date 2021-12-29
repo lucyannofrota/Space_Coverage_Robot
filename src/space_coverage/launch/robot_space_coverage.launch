@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<launch>
+  <master auto="start"/>
+
+  <!-- Robot Model -->
+
+  <arg name="model" default="$(find p3dx_description)/urdf/pioneer3dx.xml"/>
+  <param name="robot_description" textfile="$(arg model)" />
+
+  <!-- Stage -->
+
+  <param name="/use_sim_time" value="true"/>
+  <node pkg="stage_ros" type="stageros" name="stageros"
+args="$(find space_coverage)/world/Stage/pioneer_lab1.world" respawn="false">
+  	<param name="/use_sim_time" value="true"/>
+    <param name="base_watchdog_timeout" value="0.2"/>
+    <remap from="base_scan" to="scan"/>
+  </node>
+
+  <!-- Map Server -->
+
+  <node pkg="map_server" type="map_server" name="map_server"
+	  args="$(find space_coverage)/world/Stage/lab1/lab1.yaml" respawn="false"/>
+
+
+  <!--- load robot's URDF model -->
+  <include file="$(find p3dx_description)/launch/p3dx_description.launch">
+    <arg name="tf_prefix" value="" />
+  </include>
+
+  <!-- Rviz -->
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find space_coverage)/world/rviz/small_building.rviz" />
+    <!-- args="-d $(find p3dx_description)/launch/turtlebot3_navigation.rviz"/> -->
+
+
+  <include file="$(find space_coverage)/Modules/amcl.launch">
+    <arg name="initial_pose_x" value="0.98"/>
+    <arg name="initial_pose_y" value="9.676777508879683"/>
+    <arg name="initial_pose_a" value="-1.57"/>
+  </include>
+
+  <include file="$(find space_coverage)/Modules/move_base/move_base.launch"/>
+
+  <!-- <include file="$(find space_coverage)/Modules/space_coverage_planner.launch"/> -->
+
+  <!-- <node name="space_coverage_planner" pkg="space_coverage" type="space_coverage_node" respawn="false" output="screen">
+    <param name="x_offset" value="-12.52"/>
+    <param name="y_offset" value="-14.44"/>
+    <param name="goal_dist" value="0.9"/>
+    <param name="cell_size" value="0.6"/>
+  </node> -->
+
+</launch>

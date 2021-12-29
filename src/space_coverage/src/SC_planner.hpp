@@ -148,6 +148,7 @@ class SC_planner{
                 continue;
             }
         }
+        std::cout << "Initializing_Rviz_Markers" << std::endl;
         this->define_rviz_Markers();
     }
 
@@ -224,6 +225,7 @@ class SC_planner{
     }
 
     void detect_neighbors(cv::Mat_<uchar> &gridMap, const grid_cord &current_cell, bool *validCells){
+        printf("Hit Detect Current Cell: (%u,%u)\n",current_cell.j,current_cell.i);
         if(gridMap.at<uchar>(current_cell.i,current_cell.j-1) == SC_CELL_TYPE::FREE)
             validCells[0] = true;
         else
@@ -264,9 +266,14 @@ class SC_planner{
     }
     
     bool iterate(const geometry_msgs::Pose &current_pose){
+        // this->pubMarkers();
+        // return false;
+        using std::cout;
+        using std::endl;
 
         // Hit detection
         static grid_cord temp_gridPose;
+        printf("Current Pose: (%f,%f)\n",current_pose.position.x,current_pose.position.y);
         temp_gridPose = this->transform_world_to_grid(current_pose);
 
         if (DEBUG == 1)
@@ -276,26 +283,32 @@ class SC_planner{
 
         if(full_path.empty()){
 
+            cout << "Creating New Path" << endl;
+
             // this->last_goal = transform_world_to_grid(current_pose);
 
             cv::Mat_<uchar> temp_gridMap;
             this->gridMap.copyTo(temp_gridMap);
-            spiralSTP(temp_gridMap,temp_gridPose,full_path);
+            cout << "Current Grid Pose: "; temp_gridPose.print();
+            spiralSTC(temp_gridMap,temp_gridPose,full_path);
 
             // geometry_msgs::Point pt = (this->transform_grid_to_world(this->transform_world_to_grid(current_pose))).position;
-            this->path_marker.points.push_back((this->transform_grid_to_world(this->transform_world_to_grid(current_pose))).position);
+            if(!full_path.empty()){
+                this->path_marker.points.push_back((this->transform_grid_to_world(this->transform_world_to_grid(current_pose))).position);
 
-            for(auto itr = full_path.begin(); itr != full_path.end(); itr++){
-                geometry_msgs::Pose tempP = transform_grid_to_world(*itr);
-                this->path_marker.points.push_back(tempP.position);
+                for(auto itr = full_path.begin(); itr != full_path.end(); itr++){
+                    geometry_msgs::Pose tempP = transform_grid_to_world(*itr);
+                    this->path_marker.points.push_back(tempP.position);
+                }
+
+                // this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
+
+                this->current_goal = (*(full_path.begin())); full_path.pop_front();
+
+                cout << "Done!" << endl;
+
+                this->goal_pub(current_pose);
             }
-
-            this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
-
-            this->current_goal = (*(full_path.begin())); full_path.pop_front();
-
-
-            this->goal_pub(current_pose);
         }
         else{
             if(!this->resend_goal){
@@ -308,7 +321,7 @@ class SC_planner{
 
                     this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) = SC_CELL_TYPE::OCC;
 
-                    // this->current_goal = spiralSTP_online(temp_gridPose);
+                    // this->current_goal = spiralSTC_online(temp_gridPose);
                     // this->current_goal.direction = temp_gridPose.direction;
 
                     // full_path.
@@ -331,7 +344,7 @@ class SC_planner{
         // if(!initialized_path_markers){
         //     cv::Mat_<uchar> temp_gridMap;
         //     this->gridMap.copyTo(temp_gridMap);
-        //     spiralSTP(temp_gridMap,temp_gridPose,full_path);
+        //     spiralSTC(temp_gridMap,temp_gridPose,full_path);
 
         //     geometry_msgs::Point pt = current_pose.position;
         //     this->path_marker.points.push_back(pt);
@@ -352,7 +365,7 @@ class SC_planner{
         return true;
     }
 
-    grid_cord spiralSTP_online(const grid_cord &current_gridPose){
+    grid_cord spiralSTC_online(const grid_cord &current_gridPose){
         bool validCells[4]; //0 - esquerda 1- baixo ... 
         static std::list <grid_cord> path; //List with the nodes the robot went 
         static grid_cord next_goal;
@@ -397,24 +410,25 @@ class SC_planner{
         return next_goal;
     }
 
-    void spiralSTP(cv::Mat_<uchar> &temp_gridMap, grid_cord current_gridPose, std::list <grid_cord> &path){
-        // static std::list <grid_cord> path; //List with the nodes the robot went 
-        // static grid_cord next_goal;
+    void spiralSTC(cv::Mat_<uchar> &temp_gridMap, grid_cord current_gridPose, std::list <grid_cord> &path){
+        //TODO Criar uma forma de aceitar caminhos divididos
+        //TODO Aceitar uma posicao inicial invalida
         bool validCells[4]; //0 - esquerda 1- baixo ... 
         grid_cord next_gridPose;
 
-
+        printf("current_gridPose: (%u,%u)\n",current_gridPose.j,current_gridPose.i);
         temp_gridMap.at<uchar>(current_gridPose.i,current_gridPose.j) = SC_CELL_TYPE::OCC;
 
         do{
             this->detect_neighbors(temp_gridMap,current_gridPose,validCells);
             if(this->decisionBase(current_gridPose,next_gridPose,validCells)){
+                std::cout << "Stuck" << std::endl;
                 return;
             }
             else{
                 // next_gridPose.print();
                 path.push_back(next_gridPose);
-                spiralSTP(temp_gridMap,next_gridPose, path);
+                spiralSTC(temp_gridMap,next_gridPose, path);
             }
         }while(has_free_neighbors(validCells));
     }
@@ -461,24 +475,31 @@ class SC_planner{
     bool decisionBase(const grid_cord &actual_pose, grid_cord &next_pose, bool *validCells){
         // return true if it got stuck
 
+        std::cout << "Decision Base" << std::endl;
+        printf("Actual Grid Pose: (%u,%u)\n",actual_pose.j,actual_pose.i);
+
         // grid_cord next_pose;
         next_pose = actual_pose;
 
         if (validCells[0] == true)
         {
             next_pose= grid_cord(actual_pose.i,actual_pose.j-1,dir::LEFT);
+            next_pose.print();
             return false;
         }
         else if (validCells[1] == true){
             next_pose = grid_cord(actual_pose.i-1,actual_pose.j,dir::DOWN);
+            next_pose.print();
             return false;
         }
         else if (validCells[2] == true){
             next_pose = grid_cord(actual_pose.i,actual_pose.j+1,dir::RIGHT);
+            next_pose.print();
             return false;
         }
         else if (validCells[3] == true){
             next_pose = grid_cord(actual_pose.i+1,actual_pose.j,dir::UP);
+            next_pose.print();
             return false;
         }
         else

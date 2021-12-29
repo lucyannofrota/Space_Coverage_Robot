@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+
+<!--    <arg name="robot_type"		default="P3DX2"/>-->
+    <arg name="robot_type"		default="TraxBot"/>
+<!--    <arg name="robot_type"		default="StingBot"/>-->
+    <arg name="stereo_camera"   default="mynteye"/>
+
+    <group if="$(eval stereo_camera == 'mynteye')">
+        <include file="$(find mynt_eye_ros_wrapper)/launch/mynteye.launch"   >
+            <arg name="mynteye"         value="mynteye" />
+            <arg name="base_frame_id"   value="mynteye_link" />
+        </include>
+<!--        <node if="$(eval robot_type == 'P3DX2')" name="tf_mynt" pkg="tf" type="static_transform_publisher" args="0.218 0.059 0.735 -1.57 0 -1.22 base_link mynteye_link 10" respawn="true" />
+        <node if="$(eval robot_type == 'P3DX2')" name="tf_mynt" pkg="tf" type="static_transform_publisher" args="0.218 0.059 0.735 0 0.3491 0 base_link mynteye_link 10"
+respawn="true" />-->
+        <node if="$(eval robot_type == 'P3DX2')" name="tf_mynt" pkg="tf" type="static_transform_publisher" args="0.218 0.059 0.735 0 0 0 base_link mynteye_link 10"
+respawn="true" />
+        <node if="$(eval robot_type == 'TraxBot')" name="tf_mynt" pkg="tf" type="static_transform_publisher" args="0.12 0.06 0.23 0 0 0 base_link mynteye_link 10" respawn="true" />
+        <node if="$(eval robot_type == 'StingBot')" name="tf_mynt" pkg="tf" type="static_transform_publisher" args="0.12 0.06 0.23 -1.57 0 -1.22 base_link mynteye_link 10" respawn="true" />
+    </group>
+
+<!-- launch pointcloud_to_laserscan node -->
+    <node pkg="pointcloud_to_laserscan" type="pointcloud_to_laserscan_node" name="pointcloud_to_laserscan">
+        <remap from="cloud_in" to="/mynteye/points/data_raw"/>
+<!-- Uncomment the following line if the 2D scans of LRF and camera are to be merged -->
+<!--        <remap from="scan" to="/mynteye/scan"/>-->
+        <rosparam>
+            #target_frame: laser # Leave disabled to output scan in pointcloud frame
+            transform_tolerance: 0.01
+            min_height: 0.0
+            max_height: 2.0
+
+            angle_min: -1.5707963 # -M_PI/180.0 * 90 deg.
+            angle_max: 1.5707963 # M_PI/180.0 * 90 deg
+            angle_increment: 0.00614355896702 # M_PI/180.0 * 0.352 deg. (equal to Hokuyo URG-04LX)
+            scan_time: 0.1
+            range_min: 0.45
+            range_max: 5.0
+            use_inf: true
+            inf_epsilon: 1.0
+
+            # Concurrency level, affects number of pointclouds queued for processing and number of threads used
+            # 0 : Detect number of cores
+            # 1 : Single threaded
+            # 2->inf : Parallelism level
+            concurrency_level: 1
+        </rosparam>
+
+    </node>
+
+</launch>

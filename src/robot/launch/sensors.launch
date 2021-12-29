@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<launch>
+
+<!-- ****** SENSOR CONFIGURATION ****** -->
+    <arg name="laser_range_finder"	default="true"/>
+    <arg name="camera"			default="true"/>
+    <arg name="camera_model"		default="MyntEye"/>
+<!--    <arg name="camera_model"		default="Astra"/>-->
+
+<!-- ****** TYPE OF ROBOT ****** -->
+<!--    <arg name="robot_type"		default="P3DX2"/>-->
+    <arg name="robot_type"		default="TraxBot"/>
+<!--    <arg name="robot_type"		default="StingBot"/>-->
+    <arg name="urdf"			default="true"/>
+
+
+<master auto="start"/>
+
+
+<!-- HOKUYO URG-04LX LASER RANGE FINDER -->
+<group if="$(arg laser_range_finder)">
+   <include file="$(find robot)/launch/hokuyo_LRF.launch">
+     <arg name="robot_type"         value="$(arg robot_type)" />
+     <arg name="camera"   value="$(arg camera)" />
+   </include>
+
+   <!-- MERGE SCANS OF LRF AND POINTCLOUD_2_LASERSCAN (FROM THE CAMERA) -->
+<!-- Launch this node to merge the 2D scans of LRF and camera -->
+<!--   <node if="$(arg camera)" pkg="mergescans" type="mergescans" name="mergescans">
+	<param name="laser1_topic" value="hokuyo/scan" />
+        <param if="$(eval camera_model == 'MyntEye')" name="laser2_topic" value="mynteye/scan" />
+	<param if="$(eval camera_model == 'Astra')" name="laser2_topic" value="astra/scan" />
+	<param name="mergedscan_topic" value="scan" />
+   </node>-->
+</group>
+
+<!-- STEREO/RGBD CAMERA -->
+<group if="$(arg camera)">
+  <include if="$(eval camera_model == 'MyntEye')" file="$(find robot)/launch/mynteye_stereo_camera.launch">
+    <arg name="robot_type"         value="$(arg robot_type)" />
+  </include>
+
+  <include if="$(eval camera_model == 'Astra')" file="$(find robot)/launch/orbbec_astra_camera.launch">
+    <arg name="robot_type"         value="$(arg robot_type)" />
+  </include>
+
+</group>
+
+</launch>
+
