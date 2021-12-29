@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="random_walk" type="random_walk" name="random_walk" output="screen">
+		<param name="max_linear_speed" value="0.15" />
+		<param name="max_angular_speed" value="1.25" />
+		<param name="safe_dist_th" value="0.75" />
+		<param name="detour_obst_th" value="0.60" />
+		<param name="stop_dist_th" value="0.40" />
+		<param name="diff_th" value="0.1" />
+		<param name="verbose" value="1" />
+		<param name="useLRF" value="0" />
+  </node>
+</launch>
+

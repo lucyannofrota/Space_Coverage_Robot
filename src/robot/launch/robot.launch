@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<launch>
+
+<!-- ****** ROBOT CONFIGURATION ****** -->
+
+    <arg name="robot_type"		default="P3DX2"/>
+<!--    <arg name="robot_type"		default="TraxBot"/>-->
+<!--    <arg name="robot_type"		default="StingBot"/>-->
+    <arg name="urdf"			default="true"/>
+    <arg name="laser_range_finder"	default="true"/>
+    <arg name="camera"			default="false"/>
+<!--    <arg name="camera_model"		default="MyntEye"/>-->
+    <arg name="camera_model"		default="Astra"/>
+
+<master auto="start"/>
+
+
+<!-- ROBOT PLATFORM -->
+<include file="$(find robot)/launch/platform.launch">
+     <arg name="robot_type"     value="$(arg robot_type)" />
+     <arg name="urdf"         	value="$(arg urdf)" />
+</include>
+
+<!-- SENSORS -->
+<include file="$(find robot)/launch/sensors.launch">
+    <arg name="laser_range_finder"	default="$(arg laser_range_finder)"/>
+    <arg name="camera"			default="$(arg camera)"/>
+    <arg name="camera_model"		default="$(arg camera_model)"/>
+    <arg name="robot_type"     value="$(arg robot_type)"/>
+</include>
+
+</launch>
+

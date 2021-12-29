@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<launch>
+
+<!-- ****** ROBOT CONFIGURATION ****** -->
+
+    <arg name="robot_type"		default="P3DX2"/>
+<!--    <arg name="robot_type"		default="TraxBot"/>-->
+<!--    <arg name="robot_type"		default="StingBot"/>-->
+    <arg name="urdf"			default="true"/>
+
+
+
+<master auto="start"/>
+
+
+<!-- ROBOT DRIVER -->
+
+<group>
+  <!-- Pioneer P3-DX2 -->
+  <group if="$(eval robot_type == 'P3DX2')" >
+    <node pkg="rosaria" type="RosAria" name="ROSARIA">
+	<param name="base_link_frame" value="base_link" />
+        <param name="odom_frame" value="odom" />
+	<remap from="ROSARIA/cmd_vel" to="cmd_vel"/>
+	<remap from="ROSARIA/pose" to="odom"/>
+	<remap from="ROSARIA/sonar" to="sonar"/>
+	<remap from="ROSARIA/motors_state" to="motors_state"/>
+	<remap from="ROSARIA/enable_motors" to="enable_motors"/>
+	<remap from="ROSARIA/disable_motors" to="disable_motors"/>
+	<!--<param name="port" value="/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_D-if00-port0" />-->
+	<!--<param name="port" value="/dev/ttyUSB0" />-->
+    </node>
+
+    <!--- publish static transform from /base_link to /sonar -->
+    <node if="$(eval robot_type == 'P3DX2')" pkg="tf" type="static_transform_publisher" name="base_link_to_sonar"
+	args="0.0 0.0 0.22 0.0 0.0 0.0 1.0 base_link sonar 100" />
+  </group>
+
+  <!-- TraxBot -->
+  <node if="$(eval robot_type == 'TraxBot')" pkg="tsbot_drivers" type="traxbot" name="traxbot" output="screen">
+	<param name="serial_port" value="/dev/ttyACM0" /> 
+	<!--<param name="serial_port" value="/dev/serial/by-id/usb-Arduino__www.arduino.cc__0043_64938333932351510111-if00"/> --> 
+	<param name="baudrate" value="115200"/>
+  </node>
+
+  <!-- StingBot -->
+  <node if="$(eval robot_type == 'StingBot')" pkg="tsbot_drivers" type="stingbot" name="stingbot" output="screen">
+	<!---  	<param name="serial_port" value="/dev/ttyACM0" /> --> 
+	<param name="serial_port" value="/dev/serial/by-id/usb-Arduino__www.arduino.cc__0043_64938333932351510111-if00"/>
+	<param name="baudrate" value="115200"/>
+  </node>
+
+</group>
+
+
+<!-- ROBOT URDF model FOR RVIZ -->
+
+<group if="$(arg urdf)">
+  <include if="$(eval robot_type == 'P3DX2')" file="$(find p3dx_description)/launch/rviz_p3dx.launch"/>
+
+<param if="$(eval robot_type == 'TraxBot')" name="robot_description" textfile="$(find tsbot_drivers)/mesh/traxbot.urdf" />
+    <node if="$(eval robot_type == 'TraxBot')"
+	pkg="robot_state_publisher"
+	type="robot_state_publisher" name="robot_state_publisher">
+	<remap from="joint_state" to="joint_state"/>
+	<param name="publish_frequency" type="double" value="15.0"/>
+   </node>
+
+  <param if="$(eval robot_type == 'StingBot')" name="robot_description" textfile="$(find tsbot_drivers)/mesh/stingbot.urdf" />
+  <node if="$(eval robot_type == 'StingBot')"
+	pkg="robot_state_publisher"
+	type="robot_state_publisher" name="robot_state_publisher">
+	<remap from="joint_state" to="joint_state"/>
+	<param name="publish_frequency" type="double" value="15.0"/>
+   </node>
+</group>
+
+
+<!-- EMERGENCY STOP NODE -->
+<node pkg="estop" type="estop" name="estop" output="screen"/>
+
+</launch>
+
