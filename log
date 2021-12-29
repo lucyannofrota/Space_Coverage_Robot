@@ -1,0 +1,7 @@
+
+ERROR: Rosdep cannot find all required resources to answer your query
+Missing resource rosaria
+ROS path [0]=/opt/ros/noetic/share/ros
+ROS path [1]=/home/lucyannofrota/catkin_ws/src
+ROS path [2]=/opt/ros/noetic/share
+
