@@ -46,13 +46,15 @@ class SC_planner{
 
     // Mekers_Publisher
     ros::Publisher *MarkerPub; // Will publish if defined
-    visualization_msgs::Marker cell_marker;
+    visualization_msgs::Marker path_cell_marker;
+    visualization_msgs::Marker invalid_cell_marker;
     visualization_msgs::Marker path_marker;
 
 
     // Cell_colors
     std_msgs::ColorRGBA c_occ;
     std_msgs::ColorRGBA c_free;
+    std_msgs::ColorRGBA c_invalid;
     // bool initialized_path_markers;
     unsigned int mapExtremes[4];
 
@@ -91,6 +93,11 @@ class SC_planner{
         this->c_free.r = 80.0/255.0;
         this->c_free.g = 80.0/255.0;
         this->c_free.b = 1.0;
+
+        this->c_invalid.a = 0.2;
+        this->c_invalid.r = 115.0/255.0;
+        this->c_invalid.g = 115.0/255.0;
+        this->c_invalid.b = 115.0/255.0;
     }
 
     ~SC_planner(){
@@ -160,31 +167,52 @@ class SC_planner{
         const float spacing = 0.01;
 
         // Base marker definition
-        this->cell_marker.header.frame_id = "map";
-        this->cell_marker.header.stamp = ros::Time();
-        this->cell_marker.ns = "SC_Planner_Cells";
-        this->cell_marker.id = 0;
-        this->cell_marker.type = visualization_msgs::Marker::CUBE_LIST;
-        this->cell_marker.action = visualization_msgs::Marker::ADD;
-        this->cell_marker.pose.position.x = 0;
-        this->cell_marker.pose.position.y = 0;
-        this->cell_marker.pose.position.z = 0;
-        this->cell_marker.pose.orientation.x = 0.0;
-        this->cell_marker.pose.orientation.y = 0.0;
-        this->cell_marker.pose.orientation.z = 0.0;
-        this->cell_marker.pose.orientation.w = 1.0;
-        this->cell_marker.scale.x = this->cell_size_pix*this->baseMap_resolution-spacing;
+        this->path_cell_marker.header.frame_id = "map";
+        this->path_cell_marker.header.stamp = ros::Time();
+        this->path_cell_marker.ns = "Path Cells";
+        this->path_cell_marker.id = 0;
+        this->path_cell_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        this->path_cell_marker.action = visualization_msgs::Marker::ADD;
+        this->path_cell_marker.pose.position.x = 0;
+        this->path_cell_marker.pose.position.y = 0;
+        this->path_cell_marker.pose.position.z = 0;
+        this->path_cell_marker.pose.orientation.x = 0.0;
+        this->path_cell_marker.pose.orientation.y = 0.0;
+        this->path_cell_marker.pose.orientation.z = 0.0;
+        this->path_cell_marker.pose.orientation.w = 1.0;
+        this->path_cell_marker.scale.x = this->cell_size_pix*this->baseMap_resolution-spacing;
         printf("Cell_size: %f\n",this->cell_size_pix*this->baseMap_resolution-spacing);
-        this->cell_marker.scale.y = this->cell_size_pix*this->baseMap_resolution-spacing;
-        this->cell_marker.scale.z = 0.01;
+        this->path_cell_marker.scale.y = this->cell_size_pix*this->baseMap_resolution-spacing;
+        this->path_cell_marker.scale.z = 0.01;
         // this->marker.color.a = 1.0; // Don't forget to set the alpha!
-        this->cell_marker.lifetime.fromSec(0.15);
+        this->path_cell_marker.lifetime.fromSec(0.15);
+
+        // Base marker definition
+        this->invalid_cell_marker.header.frame_id = "map";
+        this->invalid_cell_marker.header.stamp = ros::Time();
+        this->invalid_cell_marker.ns = "Invalid Cells";
+        this->invalid_cell_marker.id = 1;
+        this->invalid_cell_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        this->invalid_cell_marker.action = visualization_msgs::Marker::ADD;
+        this->invalid_cell_marker.pose.position.x = 0;
+        this->invalid_cell_marker.pose.position.y = 0;
+        this->invalid_cell_marker.pose.position.z = 0;
+        this->invalid_cell_marker.pose.orientation.x = 0.0;
+        this->invalid_cell_marker.pose.orientation.y = 0.0;
+        this->invalid_cell_marker.pose.orientation.z = 0.0;
+        this->invalid_cell_marker.pose.orientation.w = 1.0;
+        this->invalid_cell_marker.scale.x = this->cell_size_pix*this->baseMap_resolution-spacing;
+        printf("Cell_size: %f\n",this->cell_size_pix*this->baseMap_resolution-spacing);
+        this->invalid_cell_marker.scale.y = this->cell_size_pix*this->baseMap_resolution-spacing;
+        this->invalid_cell_marker.scale.z = 0.01;
+        // this->marker.color.a = 1.0; // Don't forget to set the alpha!
+        this->invalid_cell_marker.lifetime.fromSec(0.15);
 
 
         this->path_marker.header.frame_id = "map";
         this->path_marker.header.stamp = ros::Time();
-        this->path_marker.ns = "SC_Planner_Path";
-        this->path_marker.id = 1;
+        this->path_marker.ns = "Planner Path";
+        this->path_marker.id = 2;
         this->path_marker.type = visualization_msgs::Marker::LINE_STRIP;
         this->path_marker.action = visualization_msgs::Marker::ADD;
         this->path_marker.pose.position.x = 0;
@@ -514,8 +542,8 @@ class SC_planner{
         out_pose.position.y += this->map_offset[1];
 
         // Center offset
-        out_pose.position.x += this->cell_marker.scale.x/2;
-        out_pose.position.y += this->cell_marker.scale.y/2;
+        out_pose.position.x += this->path_cell_marker.scale.x/2;
+        out_pose.position.y += this->path_cell_marker.scale.y/2;
 
         // Grid offset
         out_pose.position.x += cord.j*(this->cell_size_pix*this->baseMap_resolution); //   /2 para 0.6
@@ -554,8 +582,8 @@ class SC_planner{
         temp.position.y -= this->map_offset[1];
 
         // Center offset
-        temp.position.x -= this->cell_marker.scale.x/2;
-        temp.position.y -= this->cell_marker.scale.y/2;
+        temp.position.x -= this->path_cell_marker.scale.x/2;
+        temp.position.y -= this->path_cell_marker.scale.y/2;
 
         // Grid offset
         cord_out.j = round(temp.position.x/(this->cell_size_pix*this->baseMap_resolution));
@@ -582,7 +610,7 @@ class SC_planner{
     void pubMarkers(void){
         geometry_msgs::Pose pose;
 
-        const bool is_empty = this->cell_marker.points.empty();
+        const bool is_empty = this->path_cell_marker.points.empty() || this->invalid_cell_marker.points.empty();
 
         uint16_t idx = 0;
 
@@ -595,30 +623,30 @@ class SC_planner{
                         // This case should be empty!
                         // Used to see the complete gridMap on rviz
                         // Remove to filter the cells
+                        if(is_empty){
+                            this->invalid_cell_marker.points.push_back(pose.position);
+                            this->invalid_cell_marker.colors.push_back(this->c_invalid);
+                        }
+                        else this->invalid_cell_marker.colors[i*this->gridMap.cols+j] = this->c_invalid;
+                        idx++;
                         // if(is_empty){
-                        //     this->cell_marker.points.push_back(pose.position);
-                        //     this->cell_marker.colors.push_back(this->c_free);
-                        // }
-                        // else this->cell_marker.colors[i*this->gridMap.cols+j] = this->c_free;
-                        // idx++;
-                        // if(is_empty){
-                        //     this->path_marker.points.push_back(pose.position);
+                        //     this->invalid_cell_marker.points.push_back(pose.position);
                         // }
                         break;
                     case SC_CELL_TYPE::FREE:
                         if(is_empty){
-                            this->cell_marker.points.push_back(pose.position);
-                            this->cell_marker.colors.push_back(this->c_free);
+                            this->path_cell_marker.points.push_back(pose.position);
+                            this->path_cell_marker.colors.push_back(this->c_free);
                         }
-                        else this->cell_marker.colors[idx] = this->c_free;
+                        else this->path_cell_marker.colors[idx] = this->c_free;
                         idx++;
                         break;
                     case SC_CELL_TYPE::OCC:
                         if(is_empty){
-                            this->cell_marker.points.push_back(pose.position);
-                            this->cell_marker.colors.push_back(this->c_occ);
+                            this->path_cell_marker.points.push_back(pose.position);
+                            this->path_cell_marker.colors.push_back(this->c_occ);
                         }
-                        else this->cell_marker.colors[idx] = this->c_occ;
+                        else this->path_cell_marker.colors[idx] = this->c_occ;
                         idx++;
                         break;
                 }
@@ -626,7 +654,8 @@ class SC_planner{
             }
         }
         // this->initialized_markers = true;
-        this->MarkerPub->publish(this->cell_marker);
+        this->MarkerPub->publish(this->path_cell_marker);
+        this->MarkerPub->publish(this->invalid_cell_marker);
         this->MarkerPub->publish(this->path_marker);
     }
 

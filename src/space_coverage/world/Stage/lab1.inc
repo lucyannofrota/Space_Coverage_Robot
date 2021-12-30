@@ -211,7 +211,7 @@ interval_sim 100  # simulation timestep in milliseconds
 # Configure the GUI window
 window
 (
-  	size [ 900.0 400.0 ] 	# in pixels
+  	size [ 1280.0 1440.0 ] 	# in pixels
   	scale 32 					# pixels per meter
   	center [ 13.5  5.5 ]
   	rotate [ 0  0 ]
