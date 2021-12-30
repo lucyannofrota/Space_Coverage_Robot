@@ -4,5 +4,6 @@
     <param name="y_offset" value="-14.44"/>
     <param name="goal_dist" value="0.9"/>
     <param name="cell_size" value="0.6"/>
+    <param name="cell_threshold" value="0.01"/>
   </node>
 </launch>

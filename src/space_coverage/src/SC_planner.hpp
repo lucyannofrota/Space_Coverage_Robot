@@ -48,6 +48,7 @@ class SC_planner{
     float baseMap_resolution;
     bool grid_initialized = false;
     bool setup_done = false;
+    double cell_threshold;
 
     // Mekers_Publisher
     ros::Publisher *MarkerPub; // Will publish if defined
@@ -75,7 +76,7 @@ class SC_planner{
     public:
 
     bool goal_reached = true;
-    SC_planner(MoveBaseClient &MB_client_,float cell_m, double *map_offset_, double goal_dist_){
+    SC_planner(MoveBaseClient &MB_client_,float cell_m, double *map_offset_, double goal_dist_, double cell_threshold_){
         this->cell_size_m = cell_m;
 
         this->cell_size_pix = 0;
@@ -103,6 +104,8 @@ class SC_planner{
         this->c_invalid.r = 115.0/255.0;
         this->c_invalid.g = 115.0/255.0;
         this->c_invalid.b = 115.0/255.0;
+
+        this->cell_threshold = cell_threshold_;
     }
 
     ~SC_planner(){
@@ -147,32 +150,43 @@ class SC_planner{
 
         // Fill the grid
         // uint16_t l_side = floor(this->gridMap.rows/2); // Total side is 2*l_side+1
-        for(int16_t i = -this->l_side; i < this->l_side; i++){
-            for(int16_t j = -this->l_side; j < this->l_side; j++){
+        for(int16_t i = -this->l_side; i <= this->l_side; i++){
+            for(int16_t j = -this->l_side; j <= this->l_side; j++){
                 bool free = true;
+                // if(i == 1 && j == 1){
+                //     for(uint16_t cy = 0; cy < this->cell_size_pix; cy++){
+                //         uint16_t y = cy+i*this->cell_size_pix+floor(this->gridMap_pose.position.y/this->baseMap_resolution);
+                //         for(uint16_t cx = 0; cx < this->cell_size_pix; cx++){
+                //         uint16_t x = cx+j*this->cell_size_pix+floor(this->gridMap_pose.position.x/this->baseMap_resolution);
+                //             this->baseMap->at<uchar>(y,x) = 100;
+                //         }
+                //     }
+                // }
+                uint16_t sum = 0;
                 for(uint16_t cy = 0; cy < this->cell_size_pix; cy++){
-                    uint16_t y = cy+i*this->cell_size_pix-this->gridMap_pose.position.x/this->baseMap_resolution;
+                    uint16_t y = cy+i*this->cell_size_pix+floor(this->gridMap_pose.position.y/this->baseMap_resolution);
                     if(y > this->baseMap->rows || y < this->mapExtremes[2] || y > this->mapExtremes[3]){
                         this->gridMap.at<uchar>(i+this->l_side,j+this->l_side) = SC_CELL_TYPE::INVALID;
                         goto label1;
                     }
                     for(uint16_t cx = 0; cx < this->cell_size_pix; cx++){
-                        uint16_t x = cx+j*this->cell_size_pix-this->gridMap_pose.position.y/this->baseMap_resolution;
+                        uint16_t x = cx+j*this->cell_size_pix+floor(this->gridMap_pose.position.x/this->baseMap_resolution);
                         if(x > this->baseMap->cols || x < this->mapExtremes[0] || x > this->mapExtremes[1]){
                             this->gridMap.at<uchar>(i+this->l_side,j+this->l_side) = SC_CELL_TYPE::INVALID;
                             goto label1;
                         }
-
-                        if(this->baseMap->at<uchar>(y,x) <= 200) free = false;
+                        if(this->baseMap->at<uchar>(y,x) <= 200) sum++;
+                        // free = false;
                     }
                 }
-                if(free) this->gridMap.at<uchar>(i+this->l_side,j+this->l_side) = SC_CELL_TYPE::FREE;
+                if(sum <= this->cell_threshold) this->gridMap.at<uchar>(i+this->l_side,j+this->l_side) = SC_CELL_TYPE::FREE;
                 else this->gridMap.at<uchar>(i+this->l_side,j+this->l_side) = SC_CELL_TYPE::INVALID;
                 label1:
                 continue;
             }
         }
 
+        // this->gridMap.at<uchar>(this->l_side,this->l_side) = SC_CELL_TYPE::FREE;
         // img_Map
         cv::resize(this->gridMap, this->img_Map, cv::Size(), 6, 6);
         // resize(image, scaled_f_up, Size(), scale_up_x, scale_up_y, INTER_LINEAR);
@@ -194,12 +208,12 @@ class SC_planner{
         if(!this->setup_done) return false;
         if(!grid_initialized) this->initialize_gridMap(current_pose);
 
-        // cv::imshow("Space Coverage Planner", this->img_Map);
+        // cv::imshow("Space Coverage Planner", *this->baseMap);
         // cv::waitKey(1);
 
         this->pubMarkers();
 
-        return true;
+        // return true;
 
         // Hit detection
         static grid_cord temp_gridPose;
@@ -479,16 +493,16 @@ class SC_planner{
         geometry_msgs::Pose out_pose;
 
         // TF comp
-        out_pose.position.x -= this->gridMap_pose.position.x;
-        out_pose.position.y -= this->gridMap_pose.position.y;
+        out_pose.position.x += this->gridMap_pose.position.x;
+        out_pose.position.y += this->gridMap_pose.position.y;
 
         // Center offset
         // out_pose.position.x += this->path_cell_marker.scale.x/2;
         // out_pose.position.y += this->path_cell_marker.scale.y/2;
 
         // Grid offset
-        out_pose.position.x += (cord.j-this->l_side)*(this->cell_size_pix*this->baseMap_resolution); //   /2 para 0.6
-        out_pose.position.y += (cord.i-this->l_side)*(this->cell_size_pix*this->baseMap_resolution); // 0.02
+        out_pose.position.x += (cord.j-this->l_side-1)*(this->cell_size_pix*this->baseMap_resolution); //   /2 para 0.6
+        out_pose.position.y += (cord.i-this->l_side-1)*(this->cell_size_pix*this->baseMap_resolution); // 0.02
         // tf::getYaw(pose.orientation)
         float angle;
         switch(cord.direction){
@@ -523,12 +537,12 @@ class SC_planner{
         temp.position.y -= this->gridMap_pose.position.y;
 
         // Center offset
-        temp.position.x -= this->path_cell_marker.scale.x/2;
-        temp.position.y -= this->path_cell_marker.scale.y/2;
+        // temp.position.x -= this->path_cell_marker.scale.x/2;
+        // temp.position.y -= this->path_cell_marker.scale.y/2;
 
         // Grid offset
-        cord_out.j = round(temp.position.x/(this->cell_size_pix*this->baseMap_resolution));
-        cord_out.i = round(temp.position.y/(this->cell_size_pix*this->baseMap_resolution));
+        cord_out.j = round(temp.position.x/(this->cell_size_pix*this->baseMap_resolution))+this->l_side+1;
+        cord_out.i = round(temp.position.y/(this->cell_size_pix*this->baseMap_resolution))+this->l_side+1;
 
         if(cord_out.j >= this->gridMap.cols) cord_out.j = this->gridMap.cols;
         if(cord_out.i >= this->gridMap.rows) cord_out.i = this->gridMap.rows;

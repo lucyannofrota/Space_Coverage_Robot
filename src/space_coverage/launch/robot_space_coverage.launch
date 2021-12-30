@@ -34,9 +34,9 @@ args="$(find space_coverage)/world/Stage/pioneer_lab1.world" respawn="false">
 
 
   <include file="$(find space_coverage)/Modules/amcl.launch">
-    <arg name="initial_pose_x" value="0.98"/>
-    <arg name="initial_pose_y" value="9.676777508879683"/>
-    <arg name="initial_pose_a" value="-1.57"/>
+    <arg name="initial_pose_x" value="8.57"/>
+    <arg name="initial_pose_y" value="7.4"/>
+    <arg name="initial_pose_a" value="0.7"/>
   </include>
 
   <include file="$(find space_coverage)/Modules/move_base/move_base.launch"/>
