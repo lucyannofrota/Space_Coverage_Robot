@@ -1,0 +1,10 @@
+include "map.inc"
+
+pioneer
+(		  
+  	# Can refer to the robot by this name
+  	name "pioneer0"
+  	pose [ -17.77 34.61 0.0 270 ]
+	color "blue"
+)
+

@@ -32,6 +32,9 @@ struct grid_cord{
     void print(void){
         printf("(X: %u,Y: %u)\n", this->j, this->i);
     }
+    bool operator ==(const grid_cord &cord){
+        return (this->i == cord.i) && (this->j == cord.j);
+    }
 };
 
 class SC_planner{
@@ -42,6 +45,7 @@ class SC_planner{
     uint16_t cell_size_pix;
     cv::Mat_<uchar> gridMap; //0 - Invalid Cell, 1 - Free Cell, 2 - Occ Cell
     cv::Mat_<uchar> *baseMap;
+    std::list<grid_cord> free_cells;
     float baseMap_resolution;
 
     // Mekers_Publisher
@@ -64,6 +68,8 @@ class SC_planner{
     grid_cord current_goal;
     double goal_dist;
     bool resend_goal;
+
+    bool path_initialized = false;
 
 
     MoveBaseClient *MB_client;
@@ -149,7 +155,11 @@ class SC_planner{
                         if(this->baseMap->at<uchar>(y,x) <= 200) free = false;
                     }
                 }
-                if(free) this->gridMap.at<uchar>(i,j) = SC_CELL_TYPE::FREE;
+                if(free){
+                    grid_cord tmp(i,j);
+                    free_cells.push_back(tmp);
+                    this->gridMap.at<uchar>(i,j) = SC_CELL_TYPE::FREE;
+                }
                 else this->gridMap.at<uchar>(i,j) = SC_CELL_TYPE::INVALID;
                 label1:
                 continue;
@@ -158,90 +168,197 @@ class SC_planner{
         std::cout << "Initializing_Rviz_Markers" << std::endl;
         this->define_rviz_Markers();
     }
-
-    void set_rviz_handle(ros::Publisher &publisher){
-        this->MarkerPub = &publisher;
+    
+    grid_cord closest_cell_on_list(std::list<grid_cord> &list, const grid_cord &current_cord){
+        auto aux = list.begin(); double dist = 999999999999999999;
+        double tmp_dist;
+        for(auto itr = list.begin(); itr != list.end(); itr++){
+            tmp_dist = this->cell_dist(*itr, current_cord);
+            if(dist > tmp_dist){
+                dist = tmp_dist;
+                aux = itr;
+            }
+        }
+        return *aux;
     }
 
-    void define_rviz_Markers(void){
-        const float spacing = 0.01;
+    bool remove_from_cell_list(std::list<grid_cord> &list, const grid_cord &cord){
+        for(auto itr = list.begin(); itr != list.end(); itr++){
+            if(*itr == cord){
+                list.erase(itr);
+                return true;
+            }
+        }
+        return false;
+    }
 
-        // Base marker definition
-        this->path_cell_marker.header.frame_id = "map";
-        this->path_cell_marker.header.stamp = ros::Time();
-        this->path_cell_marker.ns = "Path Cells";
-        this->path_cell_marker.id = 0;
-        this->path_cell_marker.type = visualization_msgs::Marker::CUBE_LIST;
-        this->path_cell_marker.action = visualization_msgs::Marker::ADD;
-        this->path_cell_marker.pose.position.x = 0;
-        this->path_cell_marker.pose.position.y = 0;
-        this->path_cell_marker.pose.position.z = 0;
-        this->path_cell_marker.pose.orientation.x = 0.0;
-        this->path_cell_marker.pose.orientation.y = 0.0;
-        this->path_cell_marker.pose.orientation.z = 0.0;
-        this->path_cell_marker.pose.orientation.w = 1.0;
-        this->path_cell_marker.scale.x = this->cell_size_pix*this->baseMap_resolution-spacing;
-        printf("Cell_size: %f\n",this->cell_size_pix*this->baseMap_resolution-spacing);
-        this->path_cell_marker.scale.y = this->cell_size_pix*this->baseMap_resolution-spacing;
-        this->path_cell_marker.scale.z = 0.01;
-        // this->marker.color.a = 1.0; // Don't forget to set the alpha!
-        this->path_cell_marker.lifetime.fromSec(0.15);
+    double cell_dist(const grid_cord &cell_A,const grid_cord &cell_B){
+        return sqrt(pow(cell_A.i-cell_B.i,2)+pow(cell_A.j-cell_B.j,2));
+    }
+    
+    bool iterate(const geometry_msgs::Pose &current_pose){
+        // this->pubMarkers();
+        // return false;
+        using std::cout;
+        using std::endl;
 
-        // Base marker definition
-        this->invalid_cell_marker.header.frame_id = "map";
-        this->invalid_cell_marker.header.stamp = ros::Time();
-        this->invalid_cell_marker.ns = "Invalid Cells";
-        this->invalid_cell_marker.id = 1;
-        this->invalid_cell_marker.type = visualization_msgs::Marker::CUBE_LIST;
-        this->invalid_cell_marker.action = visualization_msgs::Marker::ADD;
-        this->invalid_cell_marker.pose.position.x = 0;
-        this->invalid_cell_marker.pose.position.y = 0;
-        this->invalid_cell_marker.pose.position.z = 0;
-        this->invalid_cell_marker.pose.orientation.x = 0.0;
-        this->invalid_cell_marker.pose.orientation.y = 0.0;
-        this->invalid_cell_marker.pose.orientation.z = 0.0;
-        this->invalid_cell_marker.pose.orientation.w = 1.0;
-        this->invalid_cell_marker.scale.x = this->cell_size_pix*this->baseMap_resolution-spacing;
-        printf("Cell_size: %f\n",this->cell_size_pix*this->baseMap_resolution-spacing);
-        this->invalid_cell_marker.scale.y = this->cell_size_pix*this->baseMap_resolution-spacing;
-        this->invalid_cell_marker.scale.z = 0.01;
-        // this->marker.color.a = 1.0; // Don't forget to set the alpha!
-        this->invalid_cell_marker.lifetime.fromSec(0.15);
+        // Hit detection
+        static grid_cord temp_gridPose;
+        // printf("Current Pose: (%f,%f)\n",current_pose.position.x,current_pose.position.y);
+        temp_gridPose = this->transform_world_to_grid(current_pose);
+        // cout << "Current Grid Pose: "; temp_gridPose.print();
 
+        if (DEBUG == 1)
+            printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
 
-        this->path_marker.header.frame_id = "map";
-        this->path_marker.header.stamp = ros::Time();
-        this->path_marker.ns = "Planner Path";
-        this->path_marker.id = 2;
-        this->path_marker.type = visualization_msgs::Marker::LINE_STRIP;
-        this->path_marker.action = visualization_msgs::Marker::ADD;
-        this->path_marker.pose.position.x = 0;
-        this->path_marker.pose.position.y = 0;
-        this->path_marker.pose.position.z = 0;
-        this->path_marker.pose.orientation.x = 0.0;
-        this->path_marker.pose.orientation.y = 0.0;
-        this->path_marker.pose.orientation.z = 0.0;
-        this->path_marker.pose.orientation.w = 1.0;
-        this->path_marker.scale.x = 0.03;
-        this->path_marker.scale.y = 0.03;
-        this->path_marker.scale.z = 0.03;
-        this->path_marker.color.a = 1;
-        this->path_marker.color.r = 1;
-        this->path_marker.color.g = 0;
-        this->path_marker.color.b = 0;
-        this->path_marker.lifetime.fromSec(0.15);
+        static std::list <grid_cord> full_path;
+
+        if(!this->path_initialized/*full_path.empty()*/){
+
+            cout << "Creating New Path" << endl;
+
+            // this->last_goal = transform_world_to_grid(current_pose);
+
+            if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::INVALID){
+                temp_gridPose = closest_cell_on_list(this->free_cells,temp_gridPose);
+            }
+            else this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::OCC;
+
+            cv::Mat_<uchar> temp_gridMap;
+            this->gridMap.copyTo(temp_gridMap);
+
+            // full_path.push_back(temp_gridPose);
+
+            std::list<grid_cord> cov_cells(this->free_cells);
+            // this->free_cells.copyTo(cov_cells);
+
+            grid_cord stc_tmp = temp_gridPose;
+
+            do{
+                spiralSTC(temp_gridMap,stc_tmp,full_path,cov_cells);
+                stc_tmp = this->closest_cell_on_list(cov_cells,*(full_path.end()));
+            }while(!cov_cells.empty());
+
+            for(auto itr = full_path.begin(); itr != full_path.end(); itr++){
+                    geometry_msgs::Pose tempP = transform_grid_to_world(*itr);
+                    this->path_marker.points.push_back(tempP.position);
+                }
 
 
-        // Path points demo
-        // geometry_msgs::Point pt;
-        // bool tmp = false;
-        // pt.z = 0.01;
-        // for(int a = 7; a < 14; a++){
-        //     pt.x = a;
-        //     pt.y = tmp ? 7 : 3;
-        //     tmp = !tmp; 
-        //     this->path_marker.points.push_back(pt);
-        // }
+                this->path_initialized = true;
+
+                this->current_goal = temp_gridPose;
+                this->goal_pub(current_pose);
+            }   
+        else{
+            if(!this->resend_goal){
+                bool hit = this->hit_detect(current_pose,this->current_goal);
+
+
+                if(hit || this->goal_reached){
+
+                    printf("Hit: %u, gr: %u\n",hit,this->goal_reached);
+
+                    this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) = SC_CELL_TYPE::OCC;
+                    this->remove_from_cell_list(this->free_cells,this->current_goal);
+
+                    this->current_goal = (*(full_path.begin())); full_path.pop_front();
+
+
+                    this->goal_pub(current_pose);
+                    
+                }
+            }
+            else{
+                this->goal_pub(current_pose);
+            }
+        }
+
+        this->pubMarkers();
+        return true;
+    }
+
+
+    
+
+    private:
+
+    // Goal
+
+    void goal_pub(const geometry_msgs::Pose &current_pose){
+        // Publishing goal
+        static move_base_msgs::MoveBaseGoal goal;
+        goal.target_pose.header.frame_id = "map";
+        goal.target_pose.header.stamp = ros::Time::now();
+        if(this->MB_client != NULL){
+            if(!this->resend_goal){
+                goal.target_pose.pose = this->transform_grid_to_world(this->current_goal);
+                if(ORIENTATION) goal.target_pose.pose.orientation = current_pose.orientation;
+            }
+            printf("Sending Goal!\n");
+            printf("Goal: %f,%f,%f\n",goal.target_pose.pose.position.x,goal.target_pose.pose.position.y,tf::getYaw(goal.target_pose.pose.orientation));
+            printf("Cell Goal: %u,%u,%u\n",this->current_goal.j,this->current_goal.i,this->current_goal.direction);
+            this->goal_reached = false;
+            this->MB_client->sendGoal(goal,
+                                        // &SC_planner::goalCallback,
+                                        boost::bind(&SC_planner::goalCallback, this, _1, _2),
+                                        MoveBaseClient::SimpleActiveCallback(),
+                                        MoveBaseClient::SimpleFeedbackCallback());
+
+        }
+        else ROS_WARN("No Move_Base client defined!\n");
+    }
+
+    void goalCallback(const actionlib::SimpleClientGoalState& state,
+                        const move_base_msgs::MoveBaseResult::ConstPtr& result) {
+        // https://answers.ros.org/question/202310/using-callbacks-with-simple-action-clients/
+        if(state == actionlib::SimpleClientGoalState::SUCCEEDED){
+            ROS_INFO("Goal reached!");
+            // obj.goal_reached
+            this->goal_reached = true;
+            this->resend_goal = false;
+        }
+        else{
+            this->goal_reached = false;
+            this->resend_goal = true;
+            ROS_INFO("Goal failed");
+        }
+    }
+
+    // STC
+
+    bool decisionBase(const grid_cord &actual_pose, grid_cord &next_pose, bool *validCells){
+        // return true if it got stuck
+
+        std::cout << "Decision Base" << std::endl;
+        printf("Actual Grid Pose: (%u,%u)\n",actual_pose.j,actual_pose.i);
+
+        // grid_cord next_pose;
+        next_pose = actual_pose;
+
+        if (validCells[0] == true)
+        {
+            next_pose= grid_cord(actual_pose.i,actual_pose.j-1,dir::LEFT);
+            next_pose.print();
+            return false;
+        }
+        else if (validCells[1] == true){
+            next_pose = grid_cord(actual_pose.i-1,actual_pose.j,dir::DOWN);
+            next_pose.print();
+            return false;
+        }
+        else if (validCells[2] == true){
+            next_pose = grid_cord(actual_pose.i,actual_pose.j+1,dir::RIGHT);
+            next_pose.print();
+            return false;
+        }
+        else if (validCells[3] == true){
+            next_pose = grid_cord(actual_pose.i+1,actual_pose.j,dir::UP);
+            next_pose.print();
+            return false;
+        }
+        else
+            return true;
     }
 
     bool has_free_neighbors(bool *validCells){
@@ -275,13 +392,13 @@ class SC_planner{
             validCells[3] = false; 
     }
 
-    bool hit_detect(const geometry_msgs::Pose &current_pose){
+    bool hit_detect(const geometry_msgs::Pose &current_pose, const grid_cord &goal_cord){
         // const float goal_dist = 0.85;
         static grid_cord temp_gridPose;
         temp_gridPose = this->transform_world_to_grid(current_pose);
         if(this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) == SC_CELL_TYPE::FREE){
             static geometry_msgs::Pose temp_worldPose;
-            temp_worldPose = this->transform_grid_to_world(temp_gridPose);
+            temp_worldPose = this->transform_grid_to_world(goal_cord);
             // return true;
             static float dx,dy;
             dx = abs(current_pose.position.x-temp_worldPose.position.x);
@@ -291,106 +408,6 @@ class SC_planner{
             return (dx <= this->goal_dist*((this->cell_size_pix*this->baseMap_resolution)/2) && dy <= this->goal_dist*((this->cell_size_pix*this->baseMap_resolution)/2));
         }
         else return false;
-    }
-    
-    bool iterate(const geometry_msgs::Pose &current_pose){
-        // this->pubMarkers();
-        // return false;
-        using std::cout;
-        using std::endl;
-
-        // Hit detection
-        static grid_cord temp_gridPose;
-        printf("Current Pose: (%f,%f)\n",current_pose.position.x,current_pose.position.y);
-        temp_gridPose = this->transform_world_to_grid(current_pose);
-
-        if (DEBUG == 1)
-            printf("GridPose: (%u,%u,%u,%u)\n",temp_gridPose.j,temp_gridPose.i,temp_gridPose.direction,this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j));
-
-        static std::list <grid_cord> full_path;
-
-        if(full_path.empty()){
-
-            cout << "Creating New Path" << endl;
-
-            // this->last_goal = transform_world_to_grid(current_pose);
-
-            cv::Mat_<uchar> temp_gridMap;
-            this->gridMap.copyTo(temp_gridMap);
-            cout << "Current Grid Pose: "; temp_gridPose.print();
-            spiralSTC(temp_gridMap,temp_gridPose,full_path);
-
-            // geometry_msgs::Point pt = (this->transform_grid_to_world(this->transform_world_to_grid(current_pose))).position;
-            if(!full_path.empty()){
-                this->path_marker.points.push_back((this->transform_grid_to_world(this->transform_world_to_grid(current_pose))).position);
-
-                for(auto itr = full_path.begin(); itr != full_path.end(); itr++){
-                    geometry_msgs::Pose tempP = transform_grid_to_world(*itr);
-                    this->path_marker.points.push_back(tempP.position);
-                }
-
-                // this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
-
-                this->current_goal = (*(full_path.begin())); full_path.pop_front();
-
-                cout << "Done!" << endl;
-
-                this->goal_pub(current_pose);
-            }
-        }
-        else{
-            if(!this->resend_goal){
-                bool hit = this->hit_detect(current_pose);
-
-
-                if(hit || this->goal_reached){
-
-                    printf("Hit: %u, gr: %u\n",hit,this->goal_reached);
-
-                    this->gridMap.at<uchar>(this->current_goal.i,this->current_goal.j) = SC_CELL_TYPE::OCC;
-
-                    // this->current_goal = spiralSTC_online(temp_gridPose);
-                    // this->current_goal.direction = temp_gridPose.direction;
-
-                    // full_path.
-
-
-                    // this->last_goal = this->current_goal;
-
-                    this->current_goal = (*(full_path.begin())); full_path.pop_front();
-
-
-                    this->goal_pub(current_pose);
-                    
-                }
-            }
-            else{
-                this->goal_pub(current_pose);
-            }
-        }
-
-        // if(!initialized_path_markers){
-        //     cv::Mat_<uchar> temp_gridMap;
-        //     this->gridMap.copyTo(temp_gridMap);
-        //     spiralSTC(temp_gridMap,temp_gridPose,full_path);
-
-        //     geometry_msgs::Point pt = current_pose.position;
-        //     this->path_marker.points.push_back(pt);
-
-        //     for(auto itr = full_path.begin(); itr != full_path.end(); itr++){
-        //         geometry_msgs::Pose tempP = transform_grid_to_world(*itr);
-        //         this->path_marker.points.push_back(tempP.position);
-        //     }
-
-        //     initialized_path_markers = true;
-        // }
-
-        // if(this->hit_detect(current_pose)) this->gridMap.at<uchar>(temp_gridPose.i,temp_gridPose.j) = SC_CELL_TYPE::OCC;
-
-        
-
-        this->pubMarkers();
-        return true;
     }
 
     grid_cord spiralSTC_online(const grid_cord &current_gridPose){
@@ -438,14 +455,14 @@ class SC_planner{
         return next_goal;
     }
 
-    void spiralSTC(cv::Mat_<uchar> &temp_gridMap, grid_cord current_gridPose, std::list <grid_cord> &path){
-        //TODO Criar uma forma de aceitar caminhos divididos
-        //TODO Aceitar uma posicao inicial invalida
+    void spiralSTC(cv::Mat_<uchar> &temp_gridMap, grid_cord current_gridPose, std::list <grid_cord> &path, std::list<grid_cord> &cov_cells){
         bool validCells[4]; //0 - esquerda 1- baixo ... 
         grid_cord next_gridPose;
 
-        printf("current_gridPose: (%u,%u)\n",current_gridPose.j,current_gridPose.i);
+        // printf("current_gridPose: (%u,%u)\n",current_gridPose.j,current_gridPose.i);
         temp_gridMap.at<uchar>(current_gridPose.i,current_gridPose.j) = SC_CELL_TYPE::OCC;
+        path.push_back(current_gridPose);
+        this->remove_from_cell_list(cov_cells,current_gridPose);
 
         do{
             this->detect_neighbors(temp_gridMap,current_gridPose,validCells);
@@ -453,86 +470,11 @@ class SC_planner{
                 std::cout << "Stuck" << std::endl;
                 return;
             }
-            else{
-                // next_gridPose.print();
-                path.push_back(next_gridPose);
-                spiralSTC(temp_gridMap,next_gridPose, path);
-            }
+            else spiralSTC(temp_gridMap,next_gridPose, path, cov_cells);
         }while(has_free_neighbors(validCells));
     }
 
-    void goal_pub(const geometry_msgs::Pose &current_pose){
-        // Publishing goal
-        static move_base_msgs::MoveBaseGoal goal;
-        goal.target_pose.header.frame_id = "map";
-        goal.target_pose.header.stamp = ros::Time::now();
-        if(this->MB_client != NULL){
-            if(!this->resend_goal){
-                goal.target_pose.pose = this->transform_grid_to_world(this->current_goal);
-                if(ORIENTATION) goal.target_pose.pose.orientation = current_pose.orientation;
-            }
-            printf("Sending Goal!\n");
-            printf("Goal: %f,%f,%f\n",goal.target_pose.pose.position.x,goal.target_pose.pose.position.y,tf::getYaw(goal.target_pose.pose.orientation));
-            printf("Cell Goal: %u,%u,%u\n",this->current_goal.j,this->current_goal.i,this->current_goal.direction);
-            this->goal_reached = false;
-            this->MB_client->sendGoal(goal,
-                                        // &SC_planner::goalCallback,
-                                        boost::bind(&SC_planner::goalCallback, this, _1, _2),
-                                        MoveBaseClient::SimpleActiveCallback(),
-                                        MoveBaseClient::SimpleFeedbackCallback());
-
-        }
-        else ROS_WARN("No Move_Base client defined!\n");
-    }
-
-    void goalCallback(const actionlib::SimpleClientGoalState& state,
-                        const move_base_msgs::MoveBaseResult::ConstPtr& result) {
-        // https://answers.ros.org/question/202310/using-callbacks-with-simple-action-clients/
-        if(state == actionlib::SimpleClientGoalState::SUCCEEDED){
-            ROS_INFO("Goal reached!");
-            // obj.goal_reached
-            this->goal_reached = true;
-        }
-        else{
-            this->goal_reached = false;
-            this->resend_goal = true;
-            ROS_INFO("Goal failed");
-        }
-    }
-
-    bool decisionBase(const grid_cord &actual_pose, grid_cord &next_pose, bool *validCells){
-        // return true if it got stuck
-
-        std::cout << "Decision Base" << std::endl;
-        printf("Actual Grid Pose: (%u,%u)\n",actual_pose.j,actual_pose.i);
-
-        // grid_cord next_pose;
-        next_pose = actual_pose;
-
-        if (validCells[0] == true)
-        {
-            next_pose= grid_cord(actual_pose.i,actual_pose.j-1,dir::LEFT);
-            next_pose.print();
-            return false;
-        }
-        else if (validCells[1] == true){
-            next_pose = grid_cord(actual_pose.i-1,actual_pose.j,dir::DOWN);
-            next_pose.print();
-            return false;
-        }
-        else if (validCells[2] == true){
-            next_pose = grid_cord(actual_pose.i,actual_pose.j+1,dir::RIGHT);
-            next_pose.print();
-            return false;
-        }
-        else if (validCells[3] == true){
-            next_pose = grid_cord(actual_pose.i+1,actual_pose.j,dir::UP);
-            next_pose.print();
-            return false;
-        }
-        else
-            return true;
-    }
+    // Transforms
 
     geometry_msgs::Pose transform_grid_to_world(const grid_cord &cord){
         geometry_msgs::Pose out_pose;
@@ -605,9 +547,87 @@ class SC_planner{
         return cord_out;
     }
 
-    private:
+
+    // Markers
+
+    void define_rviz_Markers(void){
+        const float spacing = 0.01;
+
+        ros::Duration marker_lifetime_in_sec(0.15);
+    
+
+        // Base marker definition
+        this->path_cell_marker.header.frame_id = "map";
+        this->path_cell_marker.header.stamp = ros::Time();
+        this->path_cell_marker.ns = "Path Cells";
+        this->path_cell_marker.id = 0;
+        this->path_cell_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        this->path_cell_marker.action = visualization_msgs::Marker::ADD;
+        this->path_cell_marker.pose.position.x = 0;
+        this->path_cell_marker.pose.position.y = 0;
+        this->path_cell_marker.pose.position.z = 0;
+        this->path_cell_marker.pose.orientation.x = 0.0;
+        this->path_cell_marker.pose.orientation.y = 0.0;
+        this->path_cell_marker.pose.orientation.z = 0.0;
+        this->path_cell_marker.pose.orientation.w = 1.0;
+        this->path_cell_marker.scale.x = this->cell_size_pix*this->baseMap_resolution-spacing;
+        printf("Cell_size: %f\n",this->cell_size_pix*this->baseMap_resolution-spacing);
+        this->path_cell_marker.scale.y = this->cell_size_pix*this->baseMap_resolution-spacing;
+        this->path_cell_marker.scale.z = 0.01;
+        // this->marker.color.a = 1.0; // Don't forget to set the alpha!
+        this->path_cell_marker.lifetime = marker_lifetime_in_sec;
+
+        // Base marker definition
+        this->invalid_cell_marker.header.frame_id = "map";
+        this->invalid_cell_marker.header.stamp = ros::Time();
+        this->invalid_cell_marker.ns = "Invalid Cells";
+        this->invalid_cell_marker.id = 1;
+        this->invalid_cell_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        this->invalid_cell_marker.action = visualization_msgs::Marker::ADD;
+        this->invalid_cell_marker.pose.position.x = 0;
+        this->invalid_cell_marker.pose.position.y = 0;
+        this->invalid_cell_marker.pose.position.z = 0;
+        this->invalid_cell_marker.pose.orientation.x = 0.0;
+        this->invalid_cell_marker.pose.orientation.y = 0.0;
+        this->invalid_cell_marker.pose.orientation.z = 0.0;
+        this->invalid_cell_marker.pose.orientation.w = 1.0;
+        this->invalid_cell_marker.scale.x = this->cell_size_pix*this->baseMap_resolution-spacing;
+        this->invalid_cell_marker.scale.y = this->cell_size_pix*this->baseMap_resolution-spacing;
+        this->invalid_cell_marker.scale.z = 0.01;
+        // this->marker.color.a = 1.0; // Don't forget to set the alpha!
+        // this->invalid_cell_marker.lifetime = 0;
+
+
+        this->path_marker.header.frame_id = "map";
+        this->path_marker.header.stamp = ros::Time();
+        this->path_marker.ns = "Planner Path";
+        this->path_marker.id = 2;
+        this->path_marker.type = visualization_msgs::Marker::LINE_STRIP;
+        this->path_marker.action = visualization_msgs::Marker::ADD;
+        this->path_marker.pose.position.x = 0;
+        this->path_marker.pose.position.y = 0;
+        this->path_marker.pose.position.z = 0;
+        this->path_marker.pose.orientation.x = 0.0;
+        this->path_marker.pose.orientation.y = 0.0;
+        this->path_marker.pose.orientation.z = 0.0;
+        this->path_marker.pose.orientation.w = 1.0;
+        this->path_marker.scale.x = 0.03;
+        this->path_marker.scale.y = 0.03;
+        this->path_marker.scale.z = 0.03;
+        this->path_marker.color.a = 1;
+        this->path_marker.color.r = 1;
+        this->path_marker.color.g = 0;
+        this->path_marker.color.b = 0;
+        this->path_marker.lifetime = marker_lifetime_in_sec;
+
+    }
 
     void pubMarkers(void){
+
+        static ros::Time last_tstamp = ros::Time::now();
+
+        if(ros::Time::now() - last_tstamp < this->path_cell_marker.lifetime*0.6) return;
+            
         geometry_msgs::Pose pose;
 
         const bool is_empty = this->path_cell_marker.points.empty() || this->invalid_cell_marker.points.empty();
@@ -627,11 +647,8 @@ class SC_planner{
                             this->invalid_cell_marker.points.push_back(pose.position);
                             this->invalid_cell_marker.colors.push_back(this->c_invalid);
                         }
-                        else this->invalid_cell_marker.colors[i*this->gridMap.cols+j] = this->c_invalid;
-                        idx++;
-                        // if(is_empty){
-                        //     this->invalid_cell_marker.points.push_back(pose.position);
-                        // }
+                        // else this->invalid_cell_marker.colors[i*this->gridMap.cols+j] = this->c_invalid;
+                        // idx++;
                         break;
                     case SC_CELL_TYPE::FREE:
                         if(is_empty){
@@ -647,16 +664,34 @@ class SC_planner{
                             this->path_cell_marker.colors.push_back(this->c_occ);
                         }
                         else this->path_cell_marker.colors[idx] = this->c_occ;
+                        // printf("OCC cell\n");
                         idx++;
                         break;
                 }
-                // if(this->gridMap.at<uchar>(i,j) == 0;
             }
         }
-        // this->initialized_markers = true;
+        // if(this->path_cell_marker.action == visualization_msgs::Marker::ADD || 
+        // //    this->invalid_cell_marker.action == visualization_msgs::Marker::ADD ||
+        //    this->path_marker.action == visualization_msgs::Marker::ADD){
+        //     this->path_cell_marker.action = visualization_msgs::Marker::MODIFY;
+        //     // this->invalid_cell_marker.action = visualization_msgs::Marker::MODIFY;
+        //     this->path_marker.action = visualization_msgs::Marker::MODIFY;
+        // }
+        last_tstamp = ros::Time::now();
         this->MarkerPub->publish(this->path_cell_marker);
-        this->MarkerPub->publish(this->invalid_cell_marker);
         this->MarkerPub->publish(this->path_marker);
+
+        static bool ivalidPub = false;
+        if(!ivalidPub){
+            ivalidPub = true;
+            this->MarkerPub->publish(this->invalid_cell_marker);
+        }
+    }
+
+    public:
+
+    void set_rviz_handle(ros::Publisher &publisher){
+        this->MarkerPub = &publisher;
     }
 
 };
