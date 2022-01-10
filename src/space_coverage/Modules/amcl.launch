@@ -5,9 +5,10 @@
   <arg name="initial_pose_x" default="0.0"/>
   <arg name="initial_pose_y" default="0.0"/>
   <arg name="initial_pose_a" default="0.0"/>
+  <arg name="node_start_delay" default="2"/>
 
   <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl">
+  <node pkg="amcl" type="amcl" name="amcl" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " >
 
     <param name="min_particles"             value="500"/>
     <param name="max_particles"             value="200000"/>

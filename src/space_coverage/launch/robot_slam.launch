@@ -1,33 +1,24 @@
 <?xml version="1.0"?>
 <launch>
+
   <master auto="start"/>
 
-  <!-- Robot Model -->
+  <!-- <arg name="node_start_delay" default="15.0" />  
+  <node name="listener" pkg="roscpp_tutorials" type="listener" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " /> -->
 
+  <!-- Robot Model -->
   <arg name="model" default="$(find p3dx_description)/urdf/pioneer3dx.xml"/>
   <param name="robot_description" textfile="$(arg model)" />
 
+  <!-- Robot Drivers -->
+  <include file="$(find robot)/launch/robot.launch"/>
 
-  <!--- load robot's URDF model -->
-  <!-- <include file="$(find p3dx_description)/launch/p3dx_description.launch">
-    <arg name="tf_prefix" value="" />
-  </include> -->
+  <!-- GMapping -->
+  <include file="$(find space_coverage)/Modules/gmapping.launch">
+    <arg name="node_start_delay" value="6"/>
+  </include>
 
   <!-- Rviz -->
-  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find space_coverage)/world/rviz/small_building_slam.rviz" />
-    <!-- args="-d $(find p3dx_description)/launch/turtlebot3_navigation.rviz"/> -->
-
-
-  <!-- <include file="$(find robot)/launch/robot.launch"/> -->
-
-  <include file="$(find space_coverage)/Modules/gmapping.launch"/>
-
-
-  <!-- <include file="$(find space_coverage)/Modules/move_base/move_base.launch"/> -->
-
-  <!-- <include file="$(find space_coverage)/Modules/explore.launch"/> -->
-
-
-
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find space_coverage)/world/rviz/small_building_slam.rviz" launch-prefix="bash -c 'sleep 8; $0 $@' "/>
 
 </launch>

@@ -1,8 +1,9 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="node_start_delay" default="2"/>
 <!-- GMAPPING -->
     <param name="use_sim_time" value="true"/>
-    <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
+  <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' ">
       <!--<remap from="scan" to="base_scan"/>-->
 	<param name="throttle_scans" value="10"/><!--1-->
       <param name="map_udpate_interval" value="1"/> <!--5.0 1.0 -->
