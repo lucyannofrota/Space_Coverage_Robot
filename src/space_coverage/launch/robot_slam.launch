@@ -13,12 +13,9 @@
   <!-- Robot Drivers -->
   <include file="$(find robot)/launch/robot.launch"/>
 
-<<<<<<< HEAD
   <!-- ESTOP -->
   <node type="estop" name="estop" pkg="estop" launch-prefix="bash -c 'sleep 6; $0 $@' "/>
 
-=======
->>>>>>> Centered-Map
   <!-- GMapping -->
   <include file="$(find space_coverage)/Modules/gmapping.launch">
     <arg name="node_start_delay" value="6"/>
