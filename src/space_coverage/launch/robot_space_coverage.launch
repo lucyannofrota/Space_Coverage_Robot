@@ -11,17 +11,30 @@
 
   <!-- Robot Drivers -->
   <include file="$(find robot)/launch/robot.launch"/>
+<<<<<<< HEAD
   
   <!-- ESTOP -->
   <node type="estop" name="estop" pkg="estop" launch-prefix="bash -c 'sleep 6; $0 $@' "/>
+=======
+>>>>>>> Centered-Map
 
   <!-- Map Server -->
   <node pkg="map_server" type="map_server" name="map_server"
 	  args="$(find space_coverage)/world/Stage/lab1/lab1.yaml" respawn="false" launch-prefix="bash -c 'sleep 6; $0 $@' "/>
+<<<<<<< HEAD
 
   <!-- AMCL -->
   <include file="$(find space_coverage)/Modules/amcl.launch">
     <arg name="node_start_delay" value="6.5"/>
+=======
+
+  <!-- Rviz -->
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find space_coverage)/world/rviz/small_building_slam.rviz" launch-prefix="bash -c 'sleep 6.5; $0 $@' "/>
+
+  <!-- AMCL -->
+  <include file="$(find space_coverage)/Modules/amcl.launch">
+    <arg name="node_start_delay" value="7"/>
+>>>>>>> Centered-Map
     <arg name="initial_pose_x" value="0.98"/>
     <arg name="initial_pose_y" value="9.676777508879683"/>
     <arg name="initial_pose_a" value="-1.57"/>
@@ -29,11 +42,16 @@
 
   <!-- Move_Base -->
   <include file="$(find space_coverage)/Modules/move_base/move_base.launch">
+<<<<<<< HEAD
     <arg name="node_start_delay" value="7"/>
   </include>
 
   <!-- Rviz -->
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find space_coverage)/world/rviz/small_building_slam.rviz" launch-prefix="bash -c 'sleep 7.5; $0 $@' "/>
+=======
+    <arg name="node_start_delay" value="7.5"/>
+  </include>
+>>>>>>> Centered-Map
 
   <!-- Space_Coverage_Planner -->
   <node name="space_coverage_planner" pkg="space_coverage" type="space_coverage_node" respawn="false" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@' ">
